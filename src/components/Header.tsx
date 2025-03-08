@@ -6,13 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GenerationSettings, ImageSize } from "@/types";
+import { GenerationSettings, ImageSize, PromptSettings } from "@/types";
 import { Separator } from "@/components/ui/separator";
 import { ArrowRightCircle, Loader2 } from "lucide-react";
 
 interface HeaderProps {
   settings: GenerationSettings;
+  promptSettings: PromptSettings;
   onSettingsChange: (settings: Partial<GenerationSettings>) => void;
+  onPromptSettingsChange: (settings: Partial<PromptSettings>) => void;
   onGenerate: () => void;
   isGenerating: boolean;
 }
@@ -25,7 +27,7 @@ const SIZES: { value: ImageSize; label: string }[] = [
   { value: "836x1216", label: "Square-ish (836×1216)" }
 ];
 
-const Header = ({ settings, onSettingsChange, onGenerate, isGenerating }: HeaderProps) => {
+const Header = ({ settings, promptSettings, onSettingsChange, onPromptSettingsChange, onGenerate, isGenerating }: HeaderProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
@@ -151,8 +153,8 @@ const Header = ({ settings, onSettingsChange, onGenerate, isGenerating }: Header
               <Label htmlFor="civitaiLora">Civitai Lora</Label>
               <Input 
                 id="civitaiLora" 
-                value={settings.civitaiLora} 
-                onChange={(e) => onSettingsChange({ civitaiLora: e.target.value })}
+                value={promptSettings.civitaiLora} 
+                onChange={(e) => onPromptSettingsChange({ civitaiLora: e.target.value })}
                 placeholder="Enter Lora ID or URL"
               />
             </div>

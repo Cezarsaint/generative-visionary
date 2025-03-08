@@ -148,8 +148,8 @@ const ImageViewer = ({
               <p>Size: {currentImage.settings.size}</p>
               <p>Template: {currentImage.settings.template}</p>
               <p>Style: {currentImage.settings.style}</p>
-              {currentImage.settings.civitaiLora && (
-                <p>Lora: {currentImage.settings.civitaiLora}</p>
+              {currentImage.prompts.civitaiLora && (
+                <p>Lora: {currentImage.prompts.civitaiLora}</p>
               )}
               <p>AI Enhancer: {currentImage.settings.aiEnhancer ? 'Enabled' : 'Disabled'}</p>
               <p>Date: {new Date(currentImage.timestamp).toLocaleString()}</p>
