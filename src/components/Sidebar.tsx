@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GenerationSettings, ImageSize, PromptSettings } from "@/types";
 import { Separator } from "@/components/ui/separator";
-import { ArrowRightCircle, Loader2, Sparkles, Plus, Minus } from "lucide-react";
+import { ArrowRightCircle, Loader2, Sparkles, Info } from "lucide-react";
 
 interface SidebarProps {
   generationSettings: GenerationSettings;
@@ -19,7 +19,8 @@ interface SidebarProps {
 }
 
 const TEMPLATES = ["Portrait", "Full Body", "Group", "Landscape", "Abstract"];
-const STYLES = ["Realistic", "Anime", "Cartoon", "Fantasy", "SciFi", "Noir", "Watercolor", "Oil Painting"];
+// Updated STYLES to match organizations from the API
+const STYLES = ["Realistic", "lovehent", "meitabu", "project3"];
 const SIZES: { value: ImageSize; label: string }[] = [
   { value: "1344x768", label: "Landscape (1344×768)" },
   { value: "768x1344", label: "Portrait (768×1344)" },
@@ -34,6 +35,10 @@ const Sidebar = ({
   onGenerate, 
   isGenerating 
 }: SidebarProps) => {
+  // Count number of prompts in promptScenes
+  const promptCount = promptSettings.promptScenes ? 
+    promptSettings.promptScenes.split('/').filter(p => p.trim()).length : 0;
+
   return (
     <div className="w-full md:w-80 lg:w-96 h-screen overflow-y-auto p-4 glassmorphism border-r border-white/10 shadow-lg flex flex-col">
       <div className="flex items-center gap-2 mb-6">
@@ -87,7 +92,19 @@ const Sidebar = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="style">Style</Label>
+              <div className="flex justify-between">
+                <Label htmlFor="style">Style (Organization)</Label>
+                <div className="text-xs text-muted-foreground">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-4 w-4 ml-1 text-muted-foreground"
+                    title="Style maps to the organization in the API"
+                  >
+                    <Info className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
               <Select 
                 value={generationSettings.style} 
                 onValueChange={(value) => onGenerationSettingsChange({ style: value })}
@@ -231,7 +248,19 @@ const Sidebar = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="clothingDetails">Clothing Details</Label>
+              <div className="flex justify-between">
+                <Label htmlFor="clothingDetails">Character Scene Details</Label>
+                <div className="text-xs text-muted-foreground">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-4 w-4 ml-1 text-muted-foreground"
+                    title="This maps to 'character_scene_details' in the API"
+                  >
+                    <Info className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
               <Input
                 id="clothingDetails"
                 value={promptSettings.clothingDetails}
@@ -241,7 +270,7 @@ const Sidebar = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="characterSceneDetails">Character Scene</Label>
+              <Label htmlFor="characterSceneDetails">Additional Scene Details</Label>
               <Input
                 id="characterSceneDetails"
                 value={promptSettings.characterSceneDetails}
@@ -271,47 +300,21 @@ const Sidebar = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="promptScenes">Prompt Scenes</Label>
+              <div className="flex justify-between">
+                <Label htmlFor="promptScenes">Prompt Scenes</Label>
+                <span className="text-xs text-muted-foreground">
+                  Separate with / ({promptCount} prompts)
+                </span>
+              </div>
               <Input
                 id="promptScenes"
                 value={promptSettings.promptScenes}
                 onChange={(e) => onPromptSettingsChange({ promptScenes: e.target.value })}
-                placeholder="e.g. scene 1, scene 2"
+                placeholder="e.g. sitting on throne / walking in snow"
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="maxPrompts">Max Prompts</Label>
-              <div className="flex">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="rounded-r-none"
-                  onClick={() => {
-                    const currentVal = parseInt(promptSettings.maxPrompts) || 4;
-                    onPromptSettingsChange({ maxPrompts: Math.max(1, currentVal - 1).toString() });
-                  }}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <Input
-                  id="maxPrompts"
-                  value={promptSettings.maxPrompts}
-                  onChange={(e) => onPromptSettingsChange({ maxPrompts: e.target.value })}
-                  className="rounded-none text-center"
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="rounded-l-none"
-                  onClick={() => {
-                    const currentVal = parseInt(promptSettings.maxPrompts) || 4;
-                    onPromptSettingsChange({ maxPrompts: Math.min(12, currentVal + 1).toString() });
-                  }}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Each scene separated by "/" will generate one image
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -340,8 +343,11 @@ const Sidebar = ({
                 id="civitaiLora" 
                 value={promptSettings.civitaiLora} 
                 onChange={(e) => onPromptSettingsChange({ civitaiLora: e.target.value })}
-                placeholder="Enter Lora ID or URL"
+                placeholder="e.g. 795522@1114681"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter Lora ID format: modelId@versionId
+              </p>
             </div>
           </div>
         </div>

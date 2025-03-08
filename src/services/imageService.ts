@@ -2,47 +2,70 @@
 import { GeneratedImage, Generation, GenerationSettings, PromptSettings } from "../types";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { ImageGenerator } from "../utils/imageGenerator";
 
-// In a real implementation, this would call your actual API
+// Create an instance of our ImageGenerator
+const imageGenerator = new ImageGenerator();
+
+// Parse image size string into width and height
+const parseImageSize = (size: string): { width: number, height: number } => {
+  const [width, height] = size.split("x").map(Number);
+  return { width, height };
+};
+
+// Generate images using our API
 export const generateImages = async (
   settings: GenerationSettings,
   prompts: PromptSettings,
   count = 4
 ): Promise<GeneratedImage[]> => {
-  // For now, we'll use the Lorem Picsum API as a placeholder
   console.log("Generating images with settings:", settings, "and prompts:", prompts);
   
   try {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Map our application settings to the API options
+    const { width, height } = parseImageSize(settings.size);
     
-    // Generate a batch of random images using Lorem Picsum
-    const images: GeneratedImage[] = [];
+    // Map promptSettings to character options
+    const characterOptions = {
+      organization: settings.style, // Style maps to organization
+      character_name: prompts.characterName,
+      character_base: prompts.characterBase,
+      character_scene_details: prompts.clothingDetails, // Clothing Details maps to character_scene_details
+      background: prompts.background,
+      final_details_quality_tags: prompts.finalDetailQualityTags,
+      prompt_scenes: prompts.promptScenes
+    };
     
-    for (let i = 0; i < count; i++) {
-      // Create a unique seed for each image
-      const seed = Math.floor(Math.random() * 1000000);
-      
-      // Parse size dimensions
-      const [width, height] = settings.size.split("x").map(Number);
-      
-      // Generate a unique ID for the image
-      const id = crypto.randomUUID();
-      
-      // Use Lorem Picsum with the seed as a random identifier
-      const url = `https://picsum.photos/seed/${seed}/${width}/${height}`;
-      
-      images.push({
-        id,
-        url,
-        seed,
-        timestamp: new Date(),
-        settings: { ...settings },
-        prompts: { ...prompts }
-      });
+    // Map generationSettings to API options
+    const apiOptions = {
+      width,
+      height,
+      seed: settings.seed,
+      image_format: "webp", // Default to webp for better quality/size ratio
+      optimize_size: true,
+      image_quality: 85,
+      negative_prompt: prompts.negativePrompt,
+      ...(prompts.civitaiLora ? { lora_air: prompts.civitaiLora } : {})
+    };
+    
+    // Call the API through our generator
+    const result = await imageGenerator.generateImages(characterOptions, apiOptions);
+    
+    if (!result.success || !result.images || result.images.length === 0) {
+      throw new Error(result.error || "Failed to generate images");
     }
     
-    return images;
+    // Map the API response to our application's image format
+    const generatedImages: GeneratedImage[] = result.images.map(img => ({
+      id: crypto.randomUUID(),
+      url: img.viewUrl, // Use the data URL directly
+      seed: settings.seed, // Use the same seed for all images in one generation
+      timestamp: new Date(),
+      settings: { ...settings },
+      prompts: { ...prompts }
+    }));
+    
+    return generatedImages;
   } catch (error) {
     console.error("Error generating images:", error);
     throw error;
@@ -135,11 +158,20 @@ export const restoreFromTrash = (imageIds: string[]): GeneratedImage[] => {
 
 export const downloadImage = async (imageUrl: string, filename: string): Promise<void> => {
   try {
-    const response = await fetch(imageUrl);
-    const blob = await response.blob();
-    
-    // Use FileSaver for better cross-browser compatibility
-    saveAs(blob, filename);
+    // For data URLs, we can directly convert to blob
+    if (imageUrl.startsWith('data:')) {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      
+      // Use FileSaver for better cross-browser compatibility
+      saveAs(blob, filename);
+    } else {
+      // For regular URLs, fetch first
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      
+      saveAs(blob, filename);
+    }
   } catch (error) {
     console.error("Error downloading image:", error);
     throw error;
@@ -165,11 +197,20 @@ export const downloadAllImages = async (images: GeneratedImage[]): Promise<void>
     // Add each image to the zip
     const fetchPromises = images.map(async (image, index) => {
       try {
-        const response = await fetch(image.url);
-        const blob = await response.blob();
-        
-        // Add the image to the zip with a filename that includes the seed
-        imgFolder.file(`image-${index+1}-seed-${image.seed}.jpg`, blob);
+        // For data URLs, we need to convert to blob
+        if (image.url.startsWith('data:')) {
+          const response = await fetch(image.url);
+          const blob = await response.blob();
+          
+          // Add the image to the zip with a filename that includes the seed
+          imgFolder.file(`image-${index+1}-seed-${image.seed}.jpg`, blob);
+        } else {
+          // For regular URLs, fetch first
+          const response = await fetch(image.url);
+          const blob = await response.blob();
+          
+          imgFolder.file(`image-${index+1}-seed-${image.seed}.jpg`, blob);
+        }
         
         // Return the index for progress tracking
         return index;

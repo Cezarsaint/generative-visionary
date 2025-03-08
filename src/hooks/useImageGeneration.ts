@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from "react";
 import { 
   GeneratedImage, 
@@ -17,7 +18,7 @@ import { toast } from "sonner";
 
 const defaultGenerationSettings: GenerationSettings = {
   template: "Portrait",
-  style: "Realistic",
+  style: "Realistic", // This maps to "organization" in the API
   aiEnhancer: true,
   seed: Math.floor(Math.random() * 1000000),
   size: "1344x768",
@@ -29,12 +30,12 @@ const defaultGenerationSettings: GenerationSettings = {
 const defaultPromptSettings: PromptSettings = {
   characterName: "",
   characterBase: "",
-  clothingDetails: "",
+  clothingDetails: "", // This maps to "character_scene_details" in the API
   characterSceneDetails: "",
   background: "",
   finalDetailQualityTags: "high detail, 8k, ultra realistic",
   promptScenes: "",
-  maxPrompts: "4",
+  maxPrompts: "4", // This is now the number of prompts in promptScenes (separated by /)
   arguments: "",
   negativePrompt: "deformed, distorted, disfigured, low quality",
   civitaiLora: ""
@@ -65,11 +66,25 @@ export const useImageGeneration = () => {
         return;
       }
       
-      // Get the number of images to generate
-      const count = parseInt(promptSettings.maxPrompts, 10) || 4;
+      if (!promptSettings.promptScenes) {
+        toast.error("Please enter at least one prompt scene");
+        setIsGenerating(false);
+        return;
+      }
+      
+      // Count the number of prompts in promptScenes (separated by /)
+      const promptCount = promptSettings.promptScenes.split('/').filter(p => p.trim()).length;
+      
+      if (promptCount === 0) {
+        toast.error("Please enter at least one valid prompt scene");
+        setIsGenerating(false);
+        return;
+      }
+      
+      toast.info(`Generating ${promptCount} images...`);
       
       // Generate images
-      const newImages = await generateImages(generationSettings, promptSettings, count);
+      const newImages = await generateImages(generationSettings, promptSettings, promptCount);
       
       // Save as a new generation
       const generation: Generation = {
