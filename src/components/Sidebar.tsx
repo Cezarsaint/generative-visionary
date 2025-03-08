@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { GenerationSettings, ImageSize, PromptSettings } from "@/types";
 import { Separator } from "@/components/ui/separator";
 import { ArrowRightCircle, Loader2, Sparkles, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SidebarProps {
   generationSettings: GenerationSettings;
@@ -25,6 +26,16 @@ const SIZES: { value: ImageSize; label: string }[] = [
   { value: "1344x768", label: "Landscape (1344×768)" },
   { value: "768x1344", label: "Portrait (768×1344)" },
   { value: "836x1216", label: "Square-ish (836×1216)" }
+];
+
+// LLM models
+const LLM_MODELS = [
+  "aion-labs/aion-1.0-mini",
+  "anthropic/claude-3-haiku-20240307",
+  "anthropic/claude-3-opus-20240229",
+  "anthropic/claude-3-sonnet-20240229",
+  "mistralai/mistral-7b-instruct",
+  "mistralai/mistral-small"
 ];
 
 const Sidebar = ({ 
@@ -95,14 +106,22 @@ const Sidebar = ({
               <div className="flex justify-between">
                 <Label htmlFor="style">Style (Organization)</Label>
                 <div className="text-xs text-muted-foreground">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-4 w-4 ml-1 text-muted-foreground"
-                    title="Style maps to the organization in the API"
-                  >
-                    <Info className="h-3 w-3" />
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-4 w-4 ml-1 text-muted-foreground"
+                        >
+                          <Info className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Style maps to the organization in the API</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
               <Select 
@@ -123,14 +142,47 @@ const Sidebar = ({
             </div>
 
             <div className="flex items-center space-x-2">
-              <Checkbox 
-                id="aiEnhancer" 
-                checked={generationSettings.aiEnhancer} 
-                onCheckedChange={(checked) => 
-                  onGenerationSettingsChange({ aiEnhancer: checked === true })
-                }
-              />
-              <Label htmlFor="aiEnhancer">AI Enhancer</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="aiEnhancer" 
+                        checked={generationSettings.aiEnhancer} 
+                        onCheckedChange={(checked) => 
+                          onGenerationSettingsChange({ aiEnhancer: checked === true })
+                        }
+                      />
+                      <Label htmlFor="aiEnhancer" className="cursor-pointer">AI Enhancer</Label>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>When enabled, uses an LLM to enhance auto-generated prompts</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="llmModel">LLM Model</Label>
+              <Select 
+                value={generationSettings.llmModel} 
+                onValueChange={(value) => onGenerationSettingsChange({ llmModel: value })}
+              >
+                <SelectTrigger id="llmModel">
+                  <SelectValue placeholder="Select LLM model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {LLM_MODELS.map((model) => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Used with AI Enhancer for prompt generation
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -165,7 +217,16 @@ const Sidebar = ({
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <Label htmlFor="start">Start: {generationSettings.start}</Label>
-                <span className="text-xs text-gray-500">(0-100)</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <span className="text-xs text-gray-500 cursor-help">(0-100)</span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Number of lines to select from the solo text file</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               <Slider 
                 id="start"
@@ -180,7 +241,16 @@ const Sidebar = ({
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <Label htmlFor="mid">Mid: {generationSettings.mid}</Label>
-                <span className="text-xs text-gray-500">(0-100)</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <span className="text-xs text-gray-500 cursor-help">(0-100)</span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Number of lines to select from the couple text file</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               <Slider 
                 id="mid"
@@ -195,7 +265,16 @@ const Sidebar = ({
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <Label htmlFor="end">End: {generationSettings.end}</Label>
-                <span className="text-xs text-gray-500">(0-100)</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <span className="text-xs text-gray-500 cursor-help">(0-100)</span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Number of lines to select from the afetex text file</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               <Slider 
                 id="end"
@@ -250,16 +329,22 @@ const Sidebar = ({
             <div className="space-y-2">
               <div className="flex justify-between">
                 <Label htmlFor="clothingDetails">Character Scene Details</Label>
-                <div className="text-xs text-muted-foreground">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-4 w-4 ml-1 text-muted-foreground"
-                    title="This maps to 'character_scene_details' in the API"
-                  >
-                    <Info className="h-3 w-3" />
-                  </Button>
-                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-4 w-4 ml-1 text-muted-foreground"
+                      >
+                        <Info className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>This maps to 'character_scene_details' in the API</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               <Input
                 id="clothingDetails"
@@ -302,9 +387,18 @@ const Sidebar = ({
             <div className="space-y-2">
               <div className="flex justify-between">
                 <Label htmlFor="promptScenes">Prompt Scenes</Label>
-                <span className="text-xs text-muted-foreground">
-                  Separate with / ({promptCount} prompts)
-                </span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-xs text-muted-foreground">
+                        {promptCount} {promptCount === 1 ? 'prompt' : 'prompts'}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Separate multiple scenes with /</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               <Input
                 id="promptScenes"
@@ -313,17 +407,35 @@ const Sidebar = ({
                 placeholder="e.g. sitting on throne / walking in snow"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Each scene separated by "/" will generate one image
+                Each scene separated by "/" will generate one image. Leave empty to auto-generate.
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="arguments">Arguments</Label>
+              <div className="flex justify-between">
+                <Label htmlFor="arguments">Arguments</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-4 w-4 ml-1 text-muted-foreground"
+                      >
+                        <Info className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Extra instructions for the AI Enhancer</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <Input
                 id="arguments"
                 value={promptSettings.arguments}
                 onChange={(e) => onPromptSettingsChange({ arguments: e.target.value })}
-                placeholder="e.g. additional arguments"
+                placeholder="e.g. Make it more dramatic"
               />
             </div>
 

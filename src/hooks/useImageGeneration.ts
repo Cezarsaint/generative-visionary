@@ -1,11 +1,9 @@
-
 import { useState, useCallback } from "react";
 import { 
   GeneratedImage, 
   Generation, 
   GenerationSettings, 
-  PromptSettings,
-  ImageSize
+  PromptSettings
 } from "../types";
 import { 
   generateImages, 
@@ -15,6 +13,7 @@ import {
   downloadAllImages
 } from "../services/imageService";
 import { toast } from "sonner";
+import { sceneGenerator } from "../utils/sceneGenerator";
 
 const defaultGenerationSettings: GenerationSettings = {
   template: "Portrait",
@@ -24,7 +23,8 @@ const defaultGenerationSettings: GenerationSettings = {
   size: "1344x768",
   start: 30,
   mid: 60,
-  end: 90
+  end: 90,
+  llmModel: "aion-labs/aion-1.0-mini"
 };
 
 const defaultPromptSettings: PromptSettings = {
@@ -35,7 +35,6 @@ const defaultPromptSettings: PromptSettings = {
   background: "",
   finalDetailQualityTags: "high detail, 8k, ultra realistic",
   promptScenes: "",
-  maxPrompts: "4", // This is now the number of prompts in promptScenes (separated by /)
   arguments: "",
   negativePrompt: "deformed, distorted, disfigured, low quality",
   civitaiLora: ""
@@ -66,14 +65,40 @@ export const useImageGeneration = () => {
         return;
       }
       
-      if (!promptSettings.promptScenes) {
-        toast.error("Please enter at least one prompt scene");
-        setIsGenerating(false);
-        return;
+      // If promptScenes is empty and aiEnhancer is true, generate prompt scenes
+      let finalPromptScenes = promptSettings.promptScenes;
+      if (!finalPromptScenes.trim()) {
+        try {
+          toast.info("Generating prompt scenes...");
+          
+          // Set the model first
+          sceneGenerator.setModel(generationSettings.llmModel);
+          
+          // Generate the prompt scenes
+          finalPromptScenes = await sceneGenerator.generate({
+            useApi: generationSettings.aiEnhancer,
+            start: generationSettings.start,
+            mid: generationSettings.mid,
+            end: generationSettings.end,
+            extraInstructions: promptSettings.arguments
+          });
+          
+          // Update the promptSettings with the generated scenes
+          updatePromptSettings({
+            promptScenes: finalPromptScenes
+          });
+          
+          toast.success("Prompt scenes generated successfully");
+        } catch (error) {
+          console.error("Error generating prompt scenes:", error);
+          toast.error("Failed to generate prompt scenes");
+          setIsGenerating(false);
+          return;
+        }
       }
       
       // Count the number of prompts in promptScenes (separated by /)
-      const promptCount = promptSettings.promptScenes.split('/').filter(p => p.trim()).length;
+      const promptCount = finalPromptScenes.split('/').filter(p => p.trim()).length;
       
       if (promptCount === 0) {
         toast.error("Please enter at least one valid prompt scene");
@@ -84,7 +109,11 @@ export const useImageGeneration = () => {
       toast.info(`Generating ${promptCount} images...`);
       
       // Generate images
-      const newImages = await generateImages(generationSettings, promptSettings, promptCount);
+      const newImages = await generateImages(
+        generationSettings, 
+        { ...promptSettings, promptScenes: finalPromptScenes }, 
+        promptCount
+      );
       
       // Save as a new generation
       const generation: Generation = {
@@ -92,7 +121,7 @@ export const useImageGeneration = () => {
         images: newImages,
         timestamp: new Date(),
         settings: { ...generationSettings },
-        prompts: { ...promptSettings }
+        prompts: { ...promptSettings, promptScenes: finalPromptScenes }
       };
       
       // Save to history
@@ -113,7 +142,7 @@ export const useImageGeneration = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [generationSettings, promptSettings, updateGenerationSettings]);
+  }, [generationSettings, promptSettings, updateGenerationSettings, updatePromptSettings]);
   
   const deleteImage = useCallback((imageId: string) => {
     // Find the image to delete

@@ -10,6 +10,7 @@ export interface GenerationSettings {
   start: number;
   mid: number;
   end: number;
+  llmModel: string; // New field for the LLM model
 }
 
 export interface PromptSettings {
@@ -20,7 +21,6 @@ export interface PromptSettings {
   background: string;
   finalDetailQualityTags: string;
   promptScenes: string;
-  maxPrompts: string;
   arguments: string;
   negativePrompt: string;
   civitaiLora: string;
