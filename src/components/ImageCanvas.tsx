@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { GeneratedImage } from "@/types";
 import { Download, Trash2, Maximize, Loader2 } from "lucide-react";
 import ImageViewer from "./ImageViewer";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 interface ImageCanvasProps {
   images: GeneratedImage[];
@@ -12,6 +14,7 @@ interface ImageCanvasProps {
   onDownload: (imageId: string) => void;
   onDownloadAll: () => void;
   isGenerating: boolean;
+  promptPreview: string;
 }
 
 const ImageCanvas = ({ 
@@ -19,7 +22,8 @@ const ImageCanvas = ({
   onDelete, 
   onDownload, 
   onDownloadAll, 
-  isGenerating 
+  isGenerating,
+  promptPreview 
 }: ImageCanvasProps) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
@@ -48,6 +52,20 @@ const ImageCanvas = ({
 
   const isImageLoaded = (imageId: string) => !!loadedImages[imageId];
 
+  // Function to determine image aspect ratio class
+  const getAspectRatioClass = (imageSize: string) => {
+    switch (imageSize) {
+      case "768x1344":
+        return "aspect-[9/16]"; // Portrait
+      case "1344x768":
+        return "aspect-[16/9]"; // Landscape
+      case "836x1216":
+        return "aspect-[3/4]"; // Square-ish
+      default:
+        return "aspect-[4/3]"; // Default
+    }
+  };
+
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-4">
@@ -70,7 +88,7 @@ const ImageCanvas = ({
           </div>
           <h3 className="text-xl font-medium mb-2">No Images Generated</h3>
           <p className="text-muted-foreground mb-6">
-            Adjust your settings above and click Generate to create images
+            Adjust your settings in the sidebar and click Generate to create images
           </p>
         </div>
       ) : (
@@ -91,7 +109,7 @@ const ImageCanvas = ({
               className="overflow-hidden group relative image-hover-effect animate-zoom-in transition-all duration-300"
             >
               <div 
-                className={`aspect-[4/3] bg-muted cursor-pointer relative ${isImageLoaded(image.id) ? '' : 'image-loading'}`}
+                className={`${getAspectRatioClass(image.settings.size)} bg-muted cursor-pointer relative ${isImageLoaded(image.id) ? '' : 'image-loading'}`}
                 onClick={() => openImageViewer(index)}
               >
                 <img 
@@ -150,6 +168,17 @@ const ImageCanvas = ({
           onDownload={onDownload}
         />
       )}
+
+      {/* Full Prompt Preview */}
+      <div className="mt-8 glassmorphism rounded-xl p-4">
+        <Label htmlFor="fullPrompt" className="text-lg font-medium">Full Prompt Preview</Label>
+        <Textarea
+          id="fullPrompt"
+          readOnly
+          className="mt-2 font-mono text-xs bg-muted"
+          value={promptPreview}
+        />
+      </div>
     </div>
   );
 };

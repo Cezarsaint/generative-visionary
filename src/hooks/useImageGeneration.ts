@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { 
   GeneratedImage, 
@@ -22,7 +21,6 @@ const defaultGenerationSettings: GenerationSettings = {
   aiEnhancer: true,
   seed: Math.floor(Math.random() * 1000000),
   size: "1344x768",
-  civitaiLora: "",
   start: 30,
   mid: 60,
   end: 90
@@ -38,7 +36,8 @@ const defaultPromptSettings: PromptSettings = {
   promptScenes: "",
   maxPrompts: "4",
   arguments: "",
-  negativePrompt: "deformed, distorted, disfigured, low quality"
+  negativePrompt: "deformed, distorted, disfigured, low quality",
+  civitaiLora: ""
 };
 
 export const useImageGeneration = () => {

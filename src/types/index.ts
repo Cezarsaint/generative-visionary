@@ -7,7 +7,6 @@ export interface GenerationSettings {
   aiEnhancer: boolean;
   seed: number;
   size: ImageSize;
-  civitaiLora: string;
   start: number;
   mid: number;
   end: number;
@@ -24,6 +23,7 @@ export interface PromptSettings {
   maxPrompts: string;
   arguments: string;
   negativePrompt: string;
+  civitaiLora: string;
 }
 
 export interface GeneratedImage {
