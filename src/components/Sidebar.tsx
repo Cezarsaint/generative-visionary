@@ -19,23 +19,12 @@ interface SidebarProps {
   isGenerating: boolean;
 }
 
-const TEMPLATES = ["Portrait", "Full Body", "Group", "Landscape", "Abstract"];
 // Updated STYLES to match organizations from the API
 const STYLES = ["Realistic", "lovehent", "meitabu", "project3"];
 const SIZES: { value: ImageSize; label: string }[] = [
   { value: "1344x768", label: "Landscape (1344×768)" },
   { value: "768x1344", label: "Portrait (768×1344)" },
   { value: "836x1216", label: "Square-ish (836×1216)" }
-];
-
-// LLM models
-const LLM_MODELS = [
-  "aion-labs/aion-1.0-mini",
-  "anthropic/claude-3-haiku-20240307",
-  "anthropic/claude-3-opus-20240229",
-  "anthropic/claude-3-sonnet-20240229",
-  "mistralai/mistral-7b-instruct",
-  "mistralai/mistral-small"
 ];
 
 const Sidebar = ({ 
@@ -76,229 +65,7 @@ const Sidebar = ({
       </Button>
 
       <div className="space-y-6 overflow-y-auto flex-1">
-        {/* Generation Settings Section */}
-        <div className="glassmorphism rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <h2 className="text-lg font-medium">Generation Settings</h2>
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="template">Template</Label>
-              <Select 
-                value={generationSettings.template} 
-                onValueChange={(value) => onGenerationSettingsChange({ template: value })}
-              >
-                <SelectTrigger id="template">
-                  <SelectValue placeholder="Select template" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TEMPLATES.map((template) => (
-                    <SelectItem key={template} value={template}>
-                      {template}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label htmlFor="style">Style (Organization)</Label>
-                <div className="text-xs text-muted-foreground">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-4 w-4 ml-1 text-muted-foreground"
-                        >
-                          <Info className="h-3 w-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Style maps to the organization in the API</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              </div>
-              <Select 
-                value={generationSettings.style} 
-                onValueChange={(value) => onGenerationSettingsChange({ style: value })}
-              >
-                <SelectTrigger id="style">
-                  <SelectValue placeholder="Select style" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STYLES.map((style) => (
-                    <SelectItem key={style} value={style}>
-                      {style}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox 
-                        id="aiEnhancer" 
-                        checked={generationSettings.aiEnhancer} 
-                        onCheckedChange={(checked) => 
-                          onGenerationSettingsChange({ aiEnhancer: checked === true })
-                        }
-                      />
-                      <Label htmlFor="aiEnhancer" className="cursor-pointer">AI Enhancer</Label>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>When enabled, uses an LLM to enhance auto-generated prompts</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="llmModel">LLM Model</Label>
-              <Select 
-                value={generationSettings.llmModel} 
-                onValueChange={(value) => onGenerationSettingsChange({ llmModel: value })}
-              >
-                <SelectTrigger id="llmModel">
-                  <SelectValue placeholder="Select LLM model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {LLM_MODELS.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Used with AI Enhancer for prompt generation
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="seed">Seed</Label>
-              <Input 
-                id="seed" 
-                type="number" 
-                value={generationSettings.seed} 
-                onChange={(e) => onGenerationSettingsChange({ seed: parseInt(e.target.value) || 0 })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="size">Size</Label>
-              <Select 
-                value={generationSettings.size} 
-                onValueChange={(value: ImageSize) => onGenerationSettingsChange({ size: value })}
-              >
-                <SelectTrigger id="size">
-                  <SelectValue placeholder="Select size" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SIZES.map((size) => (
-                    <SelectItem key={size.value} value={size.value}>
-                      {size.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <Label htmlFor="start">Start: {generationSettings.start}</Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <span className="text-xs text-gray-500 cursor-help">(0-100)</span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Number of lines to select from the solo text file</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <Slider 
-                id="start"
-                value={[generationSettings.start]} 
-                min={0} 
-                max={100} 
-                step={1}
-                onValueChange={(value) => onGenerationSettingsChange({ start: value[0] })}
-              />
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <Label htmlFor="mid">Mid: {generationSettings.mid}</Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <span className="text-xs text-gray-500 cursor-help">(0-100)</span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Number of lines to select from the couple text file</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <Slider 
-                id="mid"
-                value={[generationSettings.mid]} 
-                min={0} 
-                max={100} 
-                step={1}
-                onValueChange={(value) => onGenerationSettingsChange({ mid: value[0] })}
-              />
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <Label htmlFor="end">End: {generationSettings.end}</Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <span className="text-xs text-gray-500 cursor-help">(0-100)</span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Number of lines to select from the afetex text file</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <Slider 
-                id="end"
-                value={[generationSettings.end]} 
-                min={0} 
-                max={100} 
-                step={1}
-                onValueChange={(value) => onGenerationSettingsChange({ end: value[0] })}
-              />
-            </div>
-
-            <Button
-              variant="secondary"
-              onClick={() => onGenerationSettingsChange({
-                seed: Math.floor(Math.random() * 1000000)
-              })}
-              className="text-sm w-full"
-            >
-              Randomize Seed
-            </Button>
-          </div>
-        </div>
-
-        {/* Prompt Settings Section */}
+        {/* Prompt Settings Section - Moved up */}
         <div className="glassmorphism rounded-xl p-4">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="w-5 h-5 text-indigo-500" />
@@ -459,6 +226,201 @@ const Sidebar = ({
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Enter Lora ID format: modelId@versionId
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Generation Settings Section - Moved down */}
+        <div className="glassmorphism rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className="text-lg font-medium">Generation Settings</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <Label htmlFor="style">Style (Organization)</Label>
+                <div className="text-xs text-muted-foreground">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-4 w-4 ml-1 text-muted-foreground"
+                        >
+                          <Info className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Style maps to the organization in the API</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </div>
+              <Select 
+                value={generationSettings.style} 
+                onValueChange={(value) => onGenerationSettingsChange({ style: value })}
+              >
+                <SelectTrigger id="style">
+                  <SelectValue placeholder="Select style" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STYLES.map((style) => (
+                    <SelectItem key={style} value={style}>
+                      {style}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="seed">Seed</Label>
+              <Input 
+                id="seed" 
+                type="number" 
+                value={generationSettings.seed} 
+                onChange={(e) => onGenerationSettingsChange({ seed: parseInt(e.target.value) || 0 })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="size">Size</Label>
+              <Select 
+                value={generationSettings.size} 
+                onValueChange={(value: ImageSize) => onGenerationSettingsChange({ size: value })}
+              >
+                <SelectTrigger id="size">
+                  <SelectValue placeholder="Select size" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SIZES.map((size) => (
+                    <SelectItem key={size.value} value={size.value}>
+                      {size.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label htmlFor="start">Start: {generationSettings.start}</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <span className="text-xs text-gray-500 cursor-help">(0-100)</span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Number of lines to select from the solo text file</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <Slider 
+                id="start"
+                value={[generationSettings.start]} 
+                min={0} 
+                max={100} 
+                step={1}
+                onValueChange={(value) => onGenerationSettingsChange({ start: value[0] })}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label htmlFor="mid">Mid: {generationSettings.mid}</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <span className="text-xs text-gray-500 cursor-help">(0-100)</span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Number of lines to select from the couple text file</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <Slider 
+                id="mid"
+                value={[generationSettings.mid]} 
+                min={0} 
+                max={100} 
+                step={1}
+                onValueChange={(value) => onGenerationSettingsChange({ mid: value[0] })}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label htmlFor="end">End: {generationSettings.end}</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <span className="text-xs text-gray-500 cursor-help">(0-100)</span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Number of lines to select from the afetex text file</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <Slider 
+                id="end"
+                value={[generationSettings.end]} 
+                min={0} 
+                max={100} 
+                step={1}
+                onValueChange={(value) => onGenerationSettingsChange({ end: value[0] })}
+              />
+            </div>
+
+            <Button
+              variant="secondary"
+              onClick={() => onGenerationSettingsChange({
+                seed: Math.floor(Math.random() * 1000000)
+              })}
+              className="text-sm w-full"
+            >
+              Randomize Seed
+            </Button>
+
+            {/* AI Enhancer and LLM Model - Moved to the end */}
+            <div className="flex items-center space-x-2 mt-4">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="aiEnhancer" 
+                        checked={generationSettings.aiEnhancer} 
+                        onCheckedChange={(checked) => 
+                          onGenerationSettingsChange({ aiEnhancer: checked === true })
+                        }
+                      />
+                      <Label htmlFor="aiEnhancer" className="cursor-pointer">AI Enhancer</Label>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>When enabled, uses an LLM to enhance auto-generated prompts</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="llmModel">LLM Model</Label>
+              <Input
+                id="llmModel"
+                value={generationSettings.llmModel}
+                onChange={(e) => onGenerationSettingsChange({ llmModel: e.target.value })}
+                placeholder="e.g. aion-labs/aion-1.0-mini"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Used with AI Enhancer for prompt generation
               </p>
             </div>
           </div>

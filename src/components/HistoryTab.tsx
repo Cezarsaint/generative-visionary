@@ -10,7 +10,7 @@ import {
   RefreshCw 
 } from "lucide-react";
 import { Generation, GeneratedImage } from "@/types";
-import { getHistory, getTrash, clearTrash, restoreFromTrash } from "@/services/imageService";
+import { getHistory, getTrash, clearTrash, restoreFromTrash, deleteFromTrash } from "@/services/imageService";
 
 interface HistoryTabProps {
   onRestore: (images: GeneratedImage[]) => void;
@@ -83,6 +83,18 @@ const HistoryTab = ({ onRestore, onDownload }: HistoryTabProps) => {
     
     const restoredImages = restoreFromTrash(selectedIds);
     onRestore(restoredImages);
+    refreshTrash();
+    setSelectedItems({});
+  };
+
+  const handleDeleteFromTrash = () => {
+    const selectedIds = Object.entries(selectedItems)
+      .filter(([_, isSelected]) => isSelected)
+      .map(([id]) => id);
+    
+    if (selectedIds.length === 0) return;
+    
+    deleteFromTrash(selectedIds);
     refreshTrash();
     setSelectedItems({});
   };
@@ -167,7 +179,7 @@ const HistoryTab = ({ onRestore, onDownload }: HistoryTabProps) => {
                       </h3>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {generation.settings.template}, {generation.settings.style}
+                      {generation.settings.style}
                     </div>
                   </div>
                   
@@ -220,13 +232,22 @@ const HistoryTab = ({ onRestore, onDownload }: HistoryTabProps) => {
                 </Button>
                 
                 {getSelectedCount() > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRestoreFromTrash}
-                  >
-                    Restore Selected
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRestoreFromTrash}
+                    >
+                      Restore Selected
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleDeleteFromTrash}
+                    >
+                      Delete Selected
+                    </Button>
+                  </div>
                 )}
               </div>
               

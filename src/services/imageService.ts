@@ -1,4 +1,3 @@
-
 import { GeneratedImage, Generation, GenerationSettings, PromptSettings } from "../types";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -51,8 +50,17 @@ export const generateImages = async (
     // Call the API through our generator
     const result = await imageGenerator.generateImages(characterOptions, apiOptions);
     
-    if (!result.success || !result.images || result.images.length === 0) {
+    // If request was canceled or failed, just return an empty array instead of throwing
+    if (!result.success) {
+      if (result.error && result.error.includes("canceled")) {
+        console.log("Request was canceled by user");
+        return [];
+      }
       throw new Error(result.error || "Failed to generate images");
+    }
+    
+    if (!result.images || result.images.length === 0) {
+      throw new Error("No images were generated");
     }
     
     // Map the API response to our application's image format
@@ -234,5 +242,21 @@ export const downloadAllImages = async (images: GeneratedImage[]): Promise<void>
   } catch (error) {
     console.error("Error downloading all images:", error);
     throw error;
+  }
+};
+
+export const deleteFromTrash = (imageIds: string[]): void => {
+  try {
+    // Get existing trash
+    const trashJson = localStorage.getItem("imageTrash");
+    const trash: GeneratedImage[] = trashJson ? JSON.parse(trashJson) : [];
+    
+    // Remove selected images from trash
+    const updatedTrash = trash.filter(img => !imageIds.includes(img.id));
+    
+    // Save updated trash
+    localStorage.setItem("imageTrash", JSON.stringify(updatedTrash));
+  } catch (error) {
+    console.error("Error deleting from trash:", error);
   }
 };

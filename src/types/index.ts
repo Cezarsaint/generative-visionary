@@ -2,7 +2,6 @@
 export type ImageSize = "1344x768" | "768x1344" | "836x1216";
 
 export interface GenerationSettings {
-  template: string;
   style: string;
   aiEnhancer: boolean;
   seed: number;
@@ -10,7 +9,7 @@ export interface GenerationSettings {
   start: number;
   mid: number;
   end: number;
-  llmModel: string; // New field for the LLM model
+  llmModel: string; // Field for the LLM model
 }
 
 export interface PromptSettings {

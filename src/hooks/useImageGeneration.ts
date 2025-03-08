@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from "react";
 import { 
   GeneratedImage, 
@@ -16,7 +17,6 @@ import { toast } from "sonner";
 import { sceneGenerator } from "../utils/sceneGenerator";
 
 const defaultGenerationSettings: GenerationSettings = {
-  template: "Portrait",
   style: "Realistic", // This maps to "organization" in the API
   aiEnhancer: true,
   seed: Math.floor(Math.random() * 1000000),
@@ -45,6 +45,7 @@ export const useImageGeneration = () => {
   const [currentImages, setCurrentImages] = useState<GeneratedImage[]>([]);
   const [generationSettings, setGenerationSettings] = useState<GenerationSettings>(defaultGenerationSettings);
   const [promptSettings, setPromptSettings] = useState<PromptSettings>(defaultPromptSettings);
+  const [hasError, setHasError] = useState(false);
   
   const updateGenerationSettings = useCallback((settings: Partial<GenerationSettings>) => {
     setGenerationSettings(prev => ({ ...prev, ...settings }));
@@ -56,6 +57,8 @@ export const useImageGeneration = () => {
   
   const generateNewImages = useCallback(async () => {
     try {
+      // Clear any previous errors
+      setHasError(false);
       setIsGenerating(true);
       
       // Validate settings
@@ -93,6 +96,7 @@ export const useImageGeneration = () => {
           console.error("Error generating prompt scenes:", error);
           toast.error("Failed to generate prompt scenes");
           setIsGenerating(false);
+          setHasError(true);
           return;
         }
       }
@@ -114,6 +118,12 @@ export const useImageGeneration = () => {
         { ...promptSettings, promptScenes: finalPromptScenes }, 
         promptCount
       );
+      
+      // If no images were returned (possible due to cancellation), just return
+      if (newImages.length === 0) {
+        setIsGenerating(false);
+        return;
+      }
       
       // Save as a new generation
       const generation: Generation = {
@@ -139,6 +149,7 @@ export const useImageGeneration = () => {
     } catch (error) {
       console.error("Error generating images:", error);
       toast.error("Failed to generate images");
+      setHasError(true);
     } finally {
       setIsGenerating(false);
     }
@@ -219,6 +230,7 @@ export const useImageGeneration = () => {
     deleteAllImages,
     downloadSingleImage,
     downloadAll,
-    restoreImages
+    restoreImages,
+    hasError
   };
 };
