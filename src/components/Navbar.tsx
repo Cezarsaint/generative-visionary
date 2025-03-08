@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { PromptSettings } from "@/types";
-import { ChevronDown, ChevronUp, Sparkles, Plus, Minus } from "lucide-react";
+import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 
 interface NavbarProps {
   prompts: PromptSettings;
@@ -106,41 +106,7 @@ const Navbar = ({ prompts, onPromptsChange }: NavbarProps) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-            <div className="space-y-2">
-              <Label htmlFor="maxPrompts">Max Prompts</Label>
-              <div className="flex">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="rounded-r-none"
-                  onClick={() => {
-                    const currentVal = parseInt(prompts.maxPrompts) || 4;
-                    onPromptsChange({ maxPrompts: Math.max(1, currentVal - 1).toString() });
-                  }}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <Input
-                  id="maxPrompts"
-                  value={prompts.maxPrompts}
-                  onChange={(e) => onPromptsChange({ maxPrompts: e.target.value })}
-                  className="rounded-none text-center"
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="rounded-l-none"
-                  onClick={() => {
-                    const currentVal = parseInt(prompts.maxPrompts) || 4;
-                    onPromptsChange({ maxPrompts: Math.min(12, currentVal + 1).toString() });
-                  }}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <div className="space-y-2">
               <Label htmlFor="arguments">Arguments</Label>
               <Input
