@@ -65,7 +65,7 @@ export const useImageGeneration = () => {
       setHasError(false);
       setIsGenerating(true);
       
-      // Get the current settings at the time of execution
+      // Make a copy of the current settings to avoid race conditions
       const currentGenerationSettings = { ...generationSettings };
       const currentPromptSettings = { ...promptSettings };
       
@@ -80,7 +80,7 @@ export const useImageGeneration = () => {
         return;
       }
       
-      // Always generate new prompt scenes for each generation
+      // Force fresh scene generation for each request
       let finalPromptScenes = "";
       
       try {
@@ -91,11 +91,13 @@ export const useImageGeneration = () => {
         console.log(`Setting scene generator model to: ${currentGenerationSettings.llmModel}`);
         sceneGenerator.setModel(currentGenerationSettings.llmModel);
         
-        // Force clear any cached prompts to ensure fresh generation
+        // Force clear cache to ensure we get fresh prompts each time
         sceneGenerator.clearCache();
         
         // Generate new prompt scenes using current settings
         console.log(`Generating scenes with aiEnhancer=${currentGenerationSettings.aiEnhancer}`);
+        
+        // Force generation to use the parameter values at the time of clicking
         finalPromptScenes = await sceneGenerator.generate({
           useApi: currentGenerationSettings.aiEnhancer,
           start: currentGenerationSettings.start,
@@ -106,25 +108,19 @@ export const useImageGeneration = () => {
         
         console.log("Generated prompt scenes:", finalPromptScenes);
         
-        // Update the promptSettings with the generated scenes
-        updatePromptSettings({
-          promptScenes: finalPromptScenes
-        });
-        
         toast.success("Prompt scenes generated successfully");
       } catch (error) {
         console.error("Error generating prompt scenes:", error);
-        toast.error("Failed to generate prompt scenes");
-        setIsGenerating(false);
-        setHasError(true);
-        return;
+        toast.error("Failed to generate prompt scenes, using fallbacks");
+        // Use fallback prompts in case of failure
+        finalPromptScenes = "casual pose / elegant pose / dramatic pose / action pose";
       }
       
       // Count the number of prompts in promptScenes (separated by /)
       const promptCount = finalPromptScenes.split('/').filter(p => p.trim()).length;
       
       if (promptCount === 0) {
-        toast.error("Please enter at least one valid prompt scene");
+        toast.error("Failed to generate valid prompt scenes");
         setIsGenerating(false);
         return;
       }
@@ -144,17 +140,22 @@ export const useImageGeneration = () => {
         return;
       }
       
-      // Save as a new generation
-      const generation: Generation = {
-        id: crypto.randomUUID(),
-        images: newImages,
-        timestamp: new Date(),
-        settings: { ...currentGenerationSettings },
-        prompts: { ...currentPromptSettings, promptScenes: finalPromptScenes }
-      };
-      
-      // Save to history with compression to avoid quota issues
-      saveToHistory(generation);
+      // Save as a new generation - use try/catch to handle quota errors
+      try {
+        const generation: Generation = {
+          id: crypto.randomUUID(),
+          images: newImages,
+          timestamp: new Date(),
+          settings: { ...currentGenerationSettings },
+          prompts: { ...currentPromptSettings, promptScenes: finalPromptScenes }
+        };
+        
+        // Save to history with compression to avoid quota issues
+        saveToHistory(generation);
+      } catch (error) {
+        console.error("Error saving to history:", error);
+        toast.error("Failed to save to history - storage quota exceeded");
+      }
       
       // Update current images
       setCurrentImages(newImages);
@@ -172,33 +173,47 @@ export const useImageGeneration = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [generationSettings, promptSettings, updateGenerationSettings, updatePromptSettings]);
+  }, [generationSettings, promptSettings, updateGenerationSettings]);
   
   const deleteImage = useCallback((imageId: string) => {
     // Find the image to delete
     const imageToDelete = currentImages.find(img => img.id === imageId);
     
     if (imageToDelete) {
-      // Save to trash
-      saveToTrash([imageToDelete]);
-      
-      // Remove from current images
-      setCurrentImages(prev => prev.filter(img => img.id !== imageId));
-      
-      toast.success("Image moved to trash");
+      try {
+        // Save to trash
+        saveToTrash([imageToDelete]);
+        
+        // Remove from current images
+        setCurrentImages(prev => prev.filter(img => img.id !== imageId));
+        
+        toast.success("Image moved to trash");
+      } catch (error) {
+        console.error("Error saving to trash:", error);
+        // Just delete it from current images anyway
+        setCurrentImages(prev => prev.filter(img => img.id !== imageId));
+        toast.error("Failed to save to trash - storage quota exceeded");
+      }
     }
   }, [currentImages]);
   
   const deleteAllImages = useCallback(() => {
     if (currentImages.length === 0) return;
     
-    // Save all current images to trash
-    saveToTrash([...currentImages]);
-    
-    // Clear current images
-    setCurrentImages([]);
-    
-    toast.success(`${currentImages.length} images moved to trash`);
+    try {
+      // Save all current images to trash
+      saveToTrash([...currentImages]);
+      
+      // Clear current images
+      setCurrentImages([]);
+      
+      toast.success(`${currentImages.length} images moved to trash`);
+    } catch (error) {
+      console.error("Error saving to trash:", error);
+      // Just delete them from current images anyway
+      setCurrentImages([]);
+      toast.error("Failed to save to trash - storage quota exceeded");
+    }
   }, [currentImages]);
   
   const downloadSingleImage = useCallback(async (imageId: string) => {

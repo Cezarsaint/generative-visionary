@@ -49,7 +49,8 @@ export class ImageGenerator {
     const orgMappings: Record<string, { base: string, hiresfix: string }> = {
       "lovehent": { base: "mdf_an,ratatatat74", hiresfix: "mdf_an,artist:quasarcake" },
       "meitabu": { base: "(suyasuyabi,ratatatat74)", hiresfix: "(suyasuyabi,dross,(ratatatat74:0.5))" },
-      "project3": { base: "proj3 patreon", hiresfix: "" }
+      "project3": { base: "proj3 patreon", hiresfix: "" },
+      "Realistic": { base: "realistic style, detailed", hiresfix: "realistic style, detailed" }
     };
 
     const orgMapping = orgMappings[organization] || { base: "", hiresfix: "" };
@@ -57,6 +58,11 @@ export class ImageGenerator {
     // Generate character prompt
     const characterPrompt = this.cleanText(`[${character_name}], ${orgMapping.base}, ${character_base}, ${background}`);
 
+    // Handle empty prompt_scenes by creating a fallback
+    if (!prompt_scenes || prompt_scenes.trim() === "") {
+      prompt_scenes = "casual pose / elegant pose / dramatic pose / action pose";
+    }
+    
     // Process scene prompts
     const promptSegments = prompt_scenes.split("/");
 
@@ -138,8 +144,8 @@ export class ImageGenerator {
     const controller = new AbortController();
     this.activeRequests.set(requestId, controller);
     
-    // Set a long timeout (3 minutes) for the request
-    const timeoutDuration = 3 * 60 * 1000; // 3 minutes
+    // Set a much longer timeout (5 minutes) for the request
+    const timeoutDuration = 5 * 60 * 1000; // 5 minutes
     const timeoutId = setTimeout(() => {
       console.log(`Request ${requestId} timed out after ${timeoutDuration}ms`);
       this.cancelRequest(requestId);
@@ -178,7 +184,7 @@ export class ImageGenerator {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
         signal: controller.signal,
-        // Increase timeouts
+        // Increase timeouts and disable cache
         cache: 'no-store',
       });
 
