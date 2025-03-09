@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+
+import { useState, useCallback } from "react";
 import { 
   GeneratedImage, 
   Generation, 
@@ -46,21 +47,6 @@ export const useImageGeneration = () => {
   const [promptSettings, setPromptSettings] = useState<PromptSettings>(defaultPromptSettings);
   const [hasError, setHasError] = useState(false);
   
-  // Use this ref to track the latest settings when generating
-  const latestSettingsRef = useRef({
-    generation: generationSettings,
-    prompt: promptSettings
-  });
-  
-  // Update the ref whenever settings change
-  useEffect(() => {
-    latestSettingsRef.current = {
-      generation: generationSettings,
-      prompt: promptSettings
-    };
-    console.log("Settings updated - AI Enhancer:", generationSettings.aiEnhancer);
-  }, [generationSettings, promptSettings]);
-  
   const updateGenerationSettings = useCallback((settings: Partial<GenerationSettings>) => {
     setGenerationSettings(prev => {
       const updated = { ...prev, ...settings };
@@ -79,7 +65,7 @@ export const useImageGeneration = () => {
       setHasError(false);
       setIsGenerating(true);
       
-      // Get the latest settings directly from state
+      // Get the current settings at the time of execution
       const currentGenerationSettings = { ...generationSettings };
       const currentPromptSettings = { ...promptSettings };
       
@@ -94,45 +80,44 @@ export const useImageGeneration = () => {
         return;
       }
       
-      // If promptScenes is empty, generate prompt scenes
-      let finalPromptScenes = currentPromptSettings.promptScenes;
-      if (!finalPromptScenes.trim()) {
-        try {
-          toast.info("Generating prompt scenes...");
-          console.log("Starting scene generation process");
-          
-          // Set the model first - always use the current model from settings
-          console.log(`Setting scene generator model to: ${currentGenerationSettings.llmModel}`);
-          sceneGenerator.setModel(currentGenerationSettings.llmModel);
-          
-          // Generate the prompt scenes
-          console.log(`Generating scenes with aiEnhancer=${currentGenerationSettings.aiEnhancer}`);
-          finalPromptScenes = await sceneGenerator.generate({
-            useApi: currentGenerationSettings.aiEnhancer,
-            start: currentGenerationSettings.start,
-            mid: currentGenerationSettings.mid,
-            end: currentGenerationSettings.end,
-            extraInstructions: currentPromptSettings.arguments
-          });
-          
-          console.log("Generated prompt scenes:", finalPromptScenes);
-          
-          // Update the promptSettings with the generated scenes
-          updatePromptSettings({
-            promptScenes: finalPromptScenes
-          });
-          
-          // Also update the current prompt settings for this generation
-          currentPromptSettings.promptScenes = finalPromptScenes;
-          
-          toast.success("Prompt scenes generated successfully");
-        } catch (error) {
-          console.error("Error generating prompt scenes:", error);
-          toast.error("Failed to generate prompt scenes");
-          setIsGenerating(false);
-          setHasError(true);
-          return;
-        }
+      // Always generate new prompt scenes for each generation
+      let finalPromptScenes = "";
+      
+      try {
+        toast.info("Generating prompt scenes...");
+        console.log("Starting scene generation process");
+        
+        // Set the model from the current settings
+        console.log(`Setting scene generator model to: ${currentGenerationSettings.llmModel}`);
+        sceneGenerator.setModel(currentGenerationSettings.llmModel);
+        
+        // Force clear any cached prompts to ensure fresh generation
+        sceneGenerator.clearCache();
+        
+        // Generate new prompt scenes using current settings
+        console.log(`Generating scenes with aiEnhancer=${currentGenerationSettings.aiEnhancer}`);
+        finalPromptScenes = await sceneGenerator.generate({
+          useApi: currentGenerationSettings.aiEnhancer,
+          start: currentGenerationSettings.start,
+          mid: currentGenerationSettings.mid,
+          end: currentGenerationSettings.end,
+          extraInstructions: currentPromptSettings.arguments
+        });
+        
+        console.log("Generated prompt scenes:", finalPromptScenes);
+        
+        // Update the promptSettings with the generated scenes
+        updatePromptSettings({
+          promptScenes: finalPromptScenes
+        });
+        
+        toast.success("Prompt scenes generated successfully");
+      } catch (error) {
+        console.error("Error generating prompt scenes:", error);
+        toast.error("Failed to generate prompt scenes");
+        setIsGenerating(false);
+        setHasError(true);
+        return;
       }
       
       // Count the number of prompts in promptScenes (separated by /)
@@ -146,7 +131,7 @@ export const useImageGeneration = () => {
       
       toast.info(`Generating ${promptCount} images...`);
       
-      // Generate images using the current settings
+      // Generate images using the current settings and newly generated prompt scenes
       const newImages = await generateImages(
         currentGenerationSettings, 
         { ...currentPromptSettings, promptScenes: finalPromptScenes }, 
@@ -168,7 +153,7 @@ export const useImageGeneration = () => {
         prompts: { ...currentPromptSettings, promptScenes: finalPromptScenes }
       };
       
-      // Save to history
+      // Save to history with compression to avoid quota issues
       saveToHistory(generation);
       
       // Update current images

@@ -3,8 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { GeneratedImage } from "@/types";
-import { Download, Trash2, Maximize, Loader2 } from "lucide-react";
-import ImageViewer from "./ImageViewer";
+import { Download, Trash2, Maximize, Loader2, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
@@ -34,10 +33,12 @@ const ImageCanvas = ({
 
   const openImageViewer = (index: number) => {
     setSelectedImageIndex(index);
+    document.body.style.overflow = 'hidden'; // Prevent scrolling when viewer is open
   };
 
   const closeImageViewer = () => {
     setSelectedImageIndex(null);
+    document.body.style.overflow = ''; // Restore scrolling
   };
 
   const navigateImages = (direction: 'next' | 'prev') => {
@@ -155,37 +156,52 @@ const ImageCanvas = ({
         </div>
       )}
 
-      {/* Fixed position for the full-screen viewer to display correctly */}
+      {/* Fullscreen image viewer */}
       {selectedImageIndex !== null && images.length > 0 && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
-          <ImageViewer
-            image={images[selectedImageIndex]}
-            onClose={closeImageViewer}
-            onDelete={(id) => {
-              onDelete(id);
-              closeImageViewer();
-            }}
-            onDownload={onDownload}
-            showControls={true}
-          />
-          
-          <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
+          <div className="relative w-full h-full max-w-screen-xl max-h-screen flex flex-col items-center justify-center p-4">
             <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => navigateImages('prev')}
-              className="bg-white/10 hover:bg-white/20"
+              variant="ghost" 
+              size="icon"
+              onClick={closeImageViewer}
+              className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/70 z-50"
             >
-              Previous
+              <X className="h-6 w-6" />
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => navigateImages('next')}
-              className="bg-white/10 hover:bg-white/20"
-            >
-              Next
-            </Button>
+            
+            <div className="relative w-full h-full flex items-center justify-center">
+              <img 
+                src={images[selectedImageIndex].url} 
+                alt={`Full size image ${selectedImageIndex + 1}`}
+                className="max-w-full max-h-[80vh] object-contain"
+              />
+            </div>
+            
+            <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-4">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigateImages('prev')}
+                className="bg-white/10 hover:bg-white/20 text-white"
+              >
+                Previous
+              </Button>
+              <Button 
+                onClick={() => onDownload(images[selectedImageIndex].id)}
+                className="bg-white/10 hover:bg-white/20 text-white flex gap-2 items-center"
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigateImages('next')}
+                className="bg-white/10 hover:bg-white/20 text-white"
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </div>
       )}

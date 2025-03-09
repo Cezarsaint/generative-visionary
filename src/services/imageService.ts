@@ -1,3 +1,4 @@
+
 import { GeneratedImage, Generation, GenerationSettings, PromptSettings } from "../types";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -57,7 +58,8 @@ export const generateImages = async (
       if (result.error && (
         result.error.includes("canceled") || 
         result.error.includes("aborted") || 
-        result.error.includes("user")
+        result.error.includes("user") ||
+        result.error.includes("timeout")
       )) {
         console.log("Request was canceled by user or timeout");
         return [];
@@ -89,7 +91,8 @@ export const generateImages = async (
     if (error instanceof Error && 
         (error.message.includes("canceled") || 
          error.message.includes("aborted") || 
-         error.message.includes("user"))) {
+         error.message.includes("user") ||
+         error.message.includes("timeout"))) {
       console.log("Handling user cancellation as non-error");
       return [];
     }
@@ -98,37 +101,40 @@ export const generateImages = async (
   }
 };
 
+// Advanced quota-aware storage management
+const MAX_HISTORY_ITEMS = 10; // Reduce from 20 to 10 for better quota management
+const MAX_TRASH_ITEMS = 20; // Reduce from 100 to 20
+
+// Advanced image compression for storage
+const compressImageUrl = (url: string, level: number): string => {
+  if (!url || !url.startsWith('data:')) return url;
+  
+  if (level >= 3) return null; // Most aggressive: don't store image data
+  if (level >= 2) return 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // 1px transparent GIF
+  if (level >= 1) return url.substring(0, 1000) + '...'; // Truncate data URL
+  
+  return url; // No compression
+};
+
 // Helper function to reduce localStorage usage by compressing image data
 const compressStorageData = (data: any, reductionLevel = 0): any => {
   if (!data) return data;
   
-  // For array data
+  // For arrays
   if (Array.isArray(data)) {
     return data.map(item => compressStorageData(item, reductionLevel));
   }
   
-  // For object data
+  // For objects
   if (typeof data === 'object') {
     const result: any = {};
     
     for (const [key, value] of Object.entries(data)) {
-      // Skip or compress image URLs based on reduction level
-      if (key === 'url' && typeof value === 'string' && value.startsWith('data:')) {
-        if (reductionLevel >= 3) {
-          // Severe reduction: don't store image data at all
-          result[key] = null;
-        } else if (reductionLevel >= 2) {
-          // Major reduction: Store a very small thumbnail or placeholder
-          result[key] = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // 1x1 transparent gif
-        } else if (reductionLevel >= 1) {
-          // Moderate reduction: Truncate the data URL to first 1000 chars
-          result[key] = value.substring(0, 1000) + '...';
-        } else {
-          // No reduction
-          result[key] = value;
-        }
+      // Special handling for image URLs
+      if (key === 'url' && typeof value === 'string') {
+        result[key] = compressImageUrl(value, reductionLevel);
       } else {
-        // Recursively process other objects/arrays
+        // Recursively process nested objects/arrays
         result[key] = compressStorageData(value, reductionLevel);
       }
     }
@@ -140,6 +146,13 @@ const compressStorageData = (data: any, reductionLevel = 0): any => {
   return data;
 };
 
+// Get estimated size of an object in bytes
+const getObjectSize = (obj: any): number => {
+  const str = JSON.stringify(obj);
+  // Estimate 2 bytes per character (UTF-16)
+  return str.length * 2;
+};
+
 // Save generation to history with quota management
 export const saveToHistory = (generation: Generation): void => {
   try {
@@ -149,47 +162,42 @@ export const saveToHistory = (generation: Generation): void => {
     // Add the new generation at the beginning
     const updatedHistory = [generation, ...history];
     
-    // Limit history size to prevent storage quota issues
-    const limitedHistory = updatedHistory.slice(0, 20);
+    // Limit history size 
+    const limitedHistory = updatedHistory.slice(0, MAX_HISTORY_ITEMS);
     
-    let reductionLevel = 0;
-    let success = false;
+    // Try to save with progressive compression
+    let saved = false;
+    let compressionLevel = 0;
     
-    while (!success && reductionLevel <= 3) {
+    while (!saved && compressionLevel <= 3) {
       try {
-        // Try saving with current reduction level
-        const compressedData = compressStorageData(limitedHistory, reductionLevel);
+        const compressedData = compressStorageData(limitedHistory, compressionLevel);
         localStorage.setItem('imageGenerationHistory', JSON.stringify(compressedData));
-        success = true;
+        saved = true;
         
-        if (reductionLevel > 0) {
-          console.log(`Saved to history with compression level ${reductionLevel}`);
+        if (compressionLevel > 0) {
+          console.log(`Saved to history with compression level ${compressionLevel}`);
         }
       } catch (error) {
-        console.error(`Error saving to history with reduction level ${reductionLevel}:`, error);
+        compressionLevel++;
         
-        if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-          // Increase reduction level and try again
-          reductionLevel++;
-          
-          // If we've tried all reduction levels, use the most extreme approach
-          if (reductionLevel > 3) {
-            // Just save the newest generation with maximum compression
+        if (compressionLevel > 3) {
+          // Maximum compression failed, try with just the newest item
+          try {
             const singleItem = compressStorageData([generation], 3);
             localStorage.setItem('imageGenerationHistory', JSON.stringify(singleItem));
-            success = true;
-            console.log('Saved only newest generation with maximum compression');
+            saved = true;
             toast.warning('History storage limit reached. Older items removed.');
+          } catch (e) {
+            console.error("Failed to save even with maximum compression:", e);
+            toast.error('Failed to save to history due to storage limits');
           }
-        } else {
-          // For other errors, just stop trying
-          throw error;
         }
       }
     }
   } catch (error) {
     console.error('Error in saveToHistory:', error);
-    toast.error('Failed to save to history due to storage limits');
+    toast.error('Failed to save to history');
   }
 };
 
@@ -205,54 +213,48 @@ export const getHistory = (): Generation[] => {
 
 export const saveToTrash = (images: GeneratedImage[]): void => {
   try {
-    // Get existing trash from localStorage
-    const trashJson = localStorage.getItem("imageTrash");
-    const trash: GeneratedImage[] = trashJson ? JSON.parse(trashJson) : [];
+    // Get existing trash
+    const trash: GeneratedImage[] = getTrash();
     
-    // Add images to trash
-    trash.unshift(...images);
+    // Add new images to the beginning
+    const updatedTrash = [...images, ...trash];
     
-    // Limit trash to last 100 images
-    const limitedTrash = trash.slice(0, 100);
+    // Limit trash size
+    const limitedTrash = updatedTrash.slice(0, MAX_TRASH_ITEMS);
     
-    let reductionLevel = 0;
-    let success = false;
+    // Try to save with progressive compression
+    let saved = false;
+    let compressionLevel = 0;
     
-    while (!success && reductionLevel <= 3) {
+    while (!saved && compressionLevel <= 3) {
       try {
-        // Try saving with current reduction level
-        const compressedData = compressStorageData(limitedTrash, reductionLevel);
+        const compressedData = compressStorageData(limitedTrash, compressionLevel);
         localStorage.setItem("imageTrash", JSON.stringify(compressedData));
-        success = true;
+        saved = true;
         
-        if (reductionLevel > 0) {
-          console.log(`Saved to trash with compression level ${reductionLevel}`);
+        if (compressionLevel > 0) {
+          console.log(`Saved to trash with compression level ${compressionLevel}`);
         }
       } catch (error) {
-        console.error(`Error saving to trash with reduction level ${reductionLevel}:`, error);
+        compressionLevel++;
         
-        if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-          // Increase reduction level and try again
-          reductionLevel++;
-          
-          // If we've tried all reduction levels, use the most extreme approach
-          if (reductionLevel > 3) {
-            // Just save the newest images with maximum compression
-            const newItems = compressStorageData(images.slice(0, 5), 3);
+        if (compressionLevel > 3) {
+          // Maximum compression failed, try with just the newest items
+          try {
+            const newItems = compressStorageData(images.slice(0, 2), 3);
             localStorage.setItem("imageTrash", JSON.stringify(newItems));
-            success = true;
-            console.log('Saved only newest trash items with maximum compression');
+            saved = true;
             toast.warning('Trash storage limit reached. Older items removed.');
+          } catch (e) {
+            console.error("Failed to save trash even with maximum compression:", e);
+            toast.error('Failed to save to trash due to storage limits');
           }
-        } else {
-          // For other errors, just stop trying
-          throw error;
         }
       }
     }
   } catch (error) {
     console.error("Error saving to trash:", error);
-    toast.error('Failed to save to trash due to storage limits');
+    toast.error('Failed to save to trash');
   }
 };
 
@@ -273,8 +275,7 @@ export const clearTrash = (): void => {
 export const restoreFromTrash = (imageIds: string[]): GeneratedImage[] => {
   try {
     // Get existing trash
-    const trashJson = localStorage.getItem("imageTrash");
-    const trash: GeneratedImage[] = trashJson ? JSON.parse(trashJson) : [];
+    const trash: GeneratedImage[] = getTrash();
     
     // Find images to restore
     const imagesToRestore = trash.filter(img => imageIds.includes(img.id));
@@ -295,8 +296,7 @@ export const restoreFromTrash = (imageIds: string[]): GeneratedImage[] => {
 export const deleteFromHistory = (generationId: string): void => {
   try {
     // Get existing history
-    const historyJson = localStorage.getItem("imageGenerationHistory");
-    const history: Generation[] = historyJson ? JSON.parse(historyJson) : [];
+    const history: Generation[] = getHistory();
     
     // Find the generation to delete
     const generationToDelete = history.find(gen => gen.id === generationId);
@@ -308,11 +308,22 @@ export const deleteFromHistory = (generationId: string): void => {
       // Remove from history
       const updatedHistory = history.filter(gen => gen.id !== generationId);
       
-      // Save updated history
-      localStorage.setItem("imageGenerationHistory", JSON.stringify(updatedHistory));
+      // Save updated history with compression if needed
+      try {
+        localStorage.setItem("imageGenerationHistory", JSON.stringify(updatedHistory));
+      } catch (error) {
+        // If quota error, try with compression
+        if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+          const compressed = compressStorageData(updatedHistory, 1);
+          localStorage.setItem("imageGenerationHistory", JSON.stringify(compressed));
+        } else {
+          throw error;
+        }
+      }
     }
   } catch (error) {
     console.error("Error deleting from history:", error);
+    toast.error("Failed to delete from history");
   }
 };
 
@@ -358,13 +369,13 @@ export const downloadAllImages = async (images: GeneratedImage[]): Promise<void>
     const fetchPromises = images.map(async (image, index) => {
       try {
         // For data URLs, we need to convert to blob
-        if (image.url.startsWith('data:')) {
+        if (image.url && image.url.startsWith('data:')) {
           const response = await fetch(image.url);
           const blob = await response.blob();
           
           // Add the image to the zip with a filename that includes the seed
           imgFolder.file(`image-${index+1}-seed-${image.seed}.jpg`, blob);
-        } else {
+        } else if (image.url) {
           // For regular URLs, fetch first
           const response = await fetch(image.url);
           const blob = await response.blob();
@@ -400,8 +411,7 @@ export const downloadAllImages = async (images: GeneratedImage[]): Promise<void>
 export const deleteFromTrash = (imageIds: string[]): void => {
   try {
     // Get existing trash
-    const trashJson = localStorage.getItem("imageTrash");
-    const trash: GeneratedImage[] = trashJson ? JSON.parse(trashJson) : [];
+    const trash: GeneratedImage[] = getTrash();
     
     // Remove selected images from trash
     const updatedTrash = trash.filter(img => !imageIds.includes(img.id));
@@ -410,5 +420,6 @@ export const deleteFromTrash = (imageIds: string[]): void => {
     localStorage.setItem("imageTrash", JSON.stringify(updatedTrash));
   } catch (error) {
     console.error("Error deleting from trash:", error);
+    toast.error("Failed to delete from trash");
   }
 };

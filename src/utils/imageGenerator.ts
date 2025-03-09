@@ -4,6 +4,8 @@
  */
 export class ImageGenerator {
   private apiUrl: string;
+  private activeRequests: Map<string, AbortController> = new Map();
+  private requestTimeouts: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(apiUrl = "https://argusparagonstudios--storydiffusion-hires-api-comfyuimod-3da204.modal.run") {
     this.apiUrl = apiUrl;
@@ -82,6 +84,24 @@ export class ImageGenerator {
   }
 
   /**
+   * Cancel any ongoing requests
+   */
+  private cancelRequest(requestId: string) {
+    const controller = this.activeRequests.get(requestId);
+    if (controller) {
+      console.log(`Cancelling request ${requestId}`);
+      controller.abort();
+      this.activeRequests.delete(requestId);
+    }
+    
+    const timeout = this.requestTimeouts.get(requestId);
+    if (timeout) {
+      clearTimeout(timeout);
+      this.requestTimeouts.delete(requestId);
+    }
+  }
+
+  /**
    * Generate images and return data URLs
    */
   async generateImages(
@@ -111,6 +131,22 @@ export class ImageGenerator {
     requestId?: string;
     error?: string;
   }> {
+    // Generate a unique ID for this request
+    const requestId = crypto.randomUUID();
+    
+    // Create an abort controller for this request
+    const controller = new AbortController();
+    this.activeRequests.set(requestId, controller);
+    
+    // Set a long timeout (3 minutes) for the request
+    const timeoutDuration = 3 * 60 * 1000; // 3 minutes
+    const timeoutId = setTimeout(() => {
+      console.log(`Request ${requestId} timed out after ${timeoutDuration}ms`);
+      this.cancelRequest(requestId);
+    }, timeoutDuration);
+    
+    this.requestTimeouts.set(requestId, timeoutId);
+    
     try {
       // Generate prompts
       const prompts = this.generatePrompts(options);
@@ -134,21 +170,30 @@ export class ImageGenerator {
         payload.lora_air = apiOptions.lora_air;
       }
 
-      console.log("Sending API request with payload:", payload);
+      console.log(`[${requestId}] Sending API request with payload:`, payload);
 
-      // Call API
+      // Call API with the abort signal
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+        // Increase timeouts
+        cache: 'no-store',
       });
 
+      // Clean up the timeout
+      clearTimeout(timeoutId);
+      this.requestTimeouts.delete(requestId);
+      this.activeRequests.delete(requestId);
+
       if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} - ${await response.text()}`);
+        const errorText = await response.text();
+        throw new Error(`API request failed: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
-      console.log("API response received:", result);
+      console.log(`[${requestId}] API response received:`, result);
 
       // Process images into data URLs
       const imageFormat = payload.image_format as string;
@@ -163,10 +208,24 @@ export class ImageGenerator {
         success: true,
         imageCount: images.length,
         images,
-        requestId: result.request_id || 'unknown'
+        requestId: result.request_id || requestId
       };
     } catch (error: any) {
-      console.error("API error:", error);
+      // Clean up the timeout and request
+      clearTimeout(timeoutId);
+      this.requestTimeouts.delete(requestId);
+      this.activeRequests.delete(requestId);
+      
+      // Handle aborted requests differently
+      if (error.name === 'AbortError') {
+        console.log(`Request ${requestId} was aborted`);
+        return {
+          success: false,
+          error: "Request was cancelled or timed out"
+        };
+      }
+      
+      console.error(`[${requestId}] API error:`, error);
       return {
         success: false,
         error: error.message
