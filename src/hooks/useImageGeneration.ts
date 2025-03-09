@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { 
   GeneratedImage, 
   Generation, 
@@ -54,10 +54,12 @@ export const useImageGeneration = () => {
   });
   
   // Update the ref whenever settings change
-  latestSettingsRef.current = {
-    generation: generationSettings,
-    prompt: promptSettings
-  };
+  useEffect(() => {
+    latestSettingsRef.current = {
+      generation: generationSettings,
+      prompt: promptSettings
+    };
+  }, [generationSettings, promptSettings]);
   
   const updateGenerationSettings = useCallback((settings: Partial<GenerationSettings>) => {
     setGenerationSettings(prev => ({ ...prev, ...settings }));

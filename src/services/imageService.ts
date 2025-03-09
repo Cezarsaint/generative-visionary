@@ -99,20 +99,37 @@ export const generateImages = async (
 
 export const saveToHistory = (generation: Generation): void => {
   try {
-    // Get existing history from localStorage
-    const historyJson = localStorage.getItem("imageGenerationHistory");
-    const history: Generation[] = historyJson ? JSON.parse(historyJson) : [];
+    // Get existing history
+    const history = getHistory();
     
-    // Add new generation to history (at the beginning)
-    history.unshift(generation);
+    // Add the new generation at the beginning
+    const updatedHistory = [generation, ...history];
     
-    // Limit history to last 20 generations to prevent localStorage from getting too large
-    const limitedHistory = history.slice(0, 20);
+    // Limit history size to prevent storage quota issues
+    // Keep only the most recent 20 generations
+    const limitedHistory = updatedHistory.slice(0, 20);
     
-    // Save updated history back to localStorage
-    localStorage.setItem("imageGenerationHistory", JSON.stringify(limitedHistory));
+    try {
+      // Try to save to localStorage
+      localStorage.setItem('imageGenerationHistory', JSON.stringify(limitedHistory));
+    } catch (error) {
+      console.error('Error saving to history:', error);
+      
+      // If we hit quota limit, remove older items and try again
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        // Keep fewer items if we hit quota
+        const smallerHistory = updatedHistory.slice(0, 10);
+        
+        try {
+          localStorage.setItem('imageGenerationHistory', JSON.stringify(smallerHistory));
+        } catch (quotaError) {
+          // If still hitting quota issues, just keep the newest item
+          localStorage.setItem('imageGenerationHistory', JSON.stringify([generation]));
+        }
+      }
+    }
   } catch (error) {
-    console.error("Error saving to history:", error);
+    console.error('Error in saveToHistory:', error);
   }
 };
 

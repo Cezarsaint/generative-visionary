@@ -157,15 +157,14 @@ const ImageCanvas = ({
 
       {selectedImageIndex !== null && images.length > 0 && (
         <ImageViewer
-          images={images}
-          currentIndex={selectedImageIndex}
+          image={images[selectedImageIndex]}
           onClose={closeImageViewer}
-          onNavigate={navigateImages}
           onDelete={(id) => {
             onDelete(id);
             closeImageViewer();
           }}
           onDownload={onDownload}
+          showControls={true}
         />
       )}
 

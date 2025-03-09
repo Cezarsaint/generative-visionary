@@ -24,6 +24,7 @@ interface ImageViewerProps {
   isTrash?: boolean;
   isSelected?: boolean;
   onSelect?: (imageId: string) => void;
+  onClose?: () => void;
 }
 
 const ImageViewer: React.FC<ImageViewerProps> = ({
@@ -35,6 +36,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   isTrash = false,
   isSelected = false,
   onSelect,
+  onClose,
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
