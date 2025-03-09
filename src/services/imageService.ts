@@ -50,12 +50,19 @@ export const generateImages = async (
     // Call the API through our generator
     const result = await imageGenerator.generateImages(characterOptions, apiOptions);
     
-    // If request was canceled or failed, just return an empty array instead of throwing
+    // If request was canceled or failed with known error, return empty array
     if (!result.success) {
-      if (result.error && result.error.includes("canceled")) {
-        console.log("Request was canceled by user");
+      // Check specific cancellation or user-initiated errors
+      if (result.error && (
+        result.error.includes("canceled") || 
+        result.error.includes("aborted") || 
+        result.error.includes("user")
+      )) {
+        console.log("Request was canceled by user or timeout");
         return [];
       }
+      
+      // For other errors, throw to be caught by the caller
       throw new Error(result.error || "Failed to generate images");
     }
     
@@ -76,6 +83,16 @@ export const generateImages = async (
     return generatedImages;
   } catch (error) {
     console.error("Error generating images:", error);
+    
+    // Check if this is a user cancellation
+    if (error instanceof Error && 
+        (error.message.includes("canceled") || 
+         error.message.includes("aborted") || 
+         error.message.includes("user"))) {
+      console.log("Handling user cancellation as non-error");
+      return [];
+    }
+    
     throw error;
   }
 };
@@ -161,6 +178,30 @@ export const restoreFromTrash = (imageIds: string[]): GeneratedImage[] => {
   } catch (error) {
     console.error("Error restoring from trash:", error);
     return [];
+  }
+};
+
+export const deleteFromHistory = (generationId: string): void => {
+  try {
+    // Get existing history
+    const historyJson = localStorage.getItem("imageGenerationHistory");
+    const history: Generation[] = historyJson ? JSON.parse(historyJson) : [];
+    
+    // Find the generation to delete
+    const generationToDelete = history.find(gen => gen.id === generationId);
+    
+    if (generationToDelete) {
+      // Move images to trash
+      saveToTrash(generationToDelete.images);
+      
+      // Remove from history
+      const updatedHistory = history.filter(gen => gen.id !== generationId);
+      
+      // Save updated history
+      localStorage.setItem("imageGenerationHistory", JSON.stringify(updatedHistory));
+    }
+  } catch (error) {
+    console.error("Error deleting from history:", error);
   }
 };
 

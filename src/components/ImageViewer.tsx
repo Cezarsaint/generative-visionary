@@ -1,167 +1,318 @@
 
-import { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Download, Copy, Trash2, RefreshCw, Eye } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import { GeneratedImage } from "@/types";
-import { X, ChevronLeft, ChevronRight, Download, Trash2, Info } from "lucide-react";
 
 interface ImageViewerProps {
-  images: GeneratedImage[];
-  currentIndex: number;
-  onClose: () => void;
-  onNavigate: (direction: 'next' | 'prev') => void;
-  onDelete: (imageId: string) => void;
+  image: GeneratedImage;
   onDownload: (imageId: string) => void;
+  onDelete?: (imageId: string) => void;
+  onRestore?: (imageId: string) => void;
+  showControls?: boolean;
+  isTrash?: boolean;
+  isSelected?: boolean;
+  onSelect?: (imageId: string) => void;
 }
 
-const ImageViewer = ({
-  images,
-  currentIndex,
-  onClose,
-  onNavigate,
+const ImageViewer: React.FC<ImageViewerProps> = ({
+  image,
+  onDownload,
   onDelete,
-  onDownload
-}: ImageViewerProps) => {
-  const [showInfo, setShowInfo] = useState(false);
-  const currentImage = images[currentIndex];
+  onRestore,
+  showControls = true,
+  isTrash = false,
+  isSelected = false,
+  onSelect,
+}) => {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // Handle keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'ArrowLeft':
-          onNavigate('prev');
-          break;
-        case 'ArrowRight':
-          onNavigate('next');
-          break;
-        case 'Escape':
-          onClose();
-          break;
-        default:
-          break;
+  const handleCopyPrompt = () => {
+    const prompt = `${image.prompts.characterName}, ${image.prompts.characterBase}, ${image.prompts.clothingDetails}, ${image.prompts.background}, ${image.prompts.finalDetailQualityTags}`;
+    
+    navigator.clipboard.writeText(prompt).then(
+      () => {
+        toast.success("Prompt copied to clipboard");
+      },
+      () => {
+        toast.error("Failed to copy prompt");
       }
-    };
+    );
+  };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onNavigate, onClose]);
+  const handleCopySettings = () => {
+    const settings = `
+Style: ${image.settings.style}
+Size: ${image.settings.size}
+Seed: ${image.seed}
+    `.trim();
+    
+    navigator.clipboard.writeText(settings).then(
+      () => {
+        toast.success("Settings copied to clipboard");
+      },
+      () => {
+        toast.error("Failed to copy settings");
+      }
+    );
+  };
 
-  // Prevent scroll when viewer is open
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, []);
+  const formatDate = (date: Date) => {
+    if (typeof date === 'string') {
+      date = new Date(date);
+    }
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  };
 
-  if (!currentImage) return null;
+  const handleImageClick = () => {
+    if (onSelect) {
+      onSelect(image.id);
+    } else {
+      setIsDialogOpen(true);
+    }
+  };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center transition-all duration-300 animate-fade-in"
-      onClick={onClose}
-    >
+    <>
       <div 
-        className="relative w-full h-full max-w-6xl max-h-screen flex items-center justify-center p-4"
-        onClick={(e) => e.stopPropagation()}
+        className={`relative group rounded-lg overflow-hidden border ${
+          isSelected ? 'ring-2 ring-primary' : ''
+        }`}
+        onClick={onSelect ? handleImageClick : undefined}
       >
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-4 right-4 z-10 bg-black/50 text-white hover:bg-black/70 rounded-full"
-          onClick={onClose}
-        >
-          <X className="h-5 w-5" />
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-4 left-4 z-10 bg-black/50 text-white hover:bg-black/70 rounded-full"
-          onClick={() => setShowInfo(!showInfo)}
-        >
-          <Info className="h-5 w-5" />
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 text-white hover:bg-black/70 rounded-full h-10 w-10"
-          onClick={(e) => {
-            e.stopPropagation();
-            onNavigate('prev');
-          }}
-        >
-          <ChevronLeft className="h-6 w-6" />
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 text-white hover:bg-black/70 rounded-full h-10 w-10"
-          onClick={(e) => {
-            e.stopPropagation();
-            onNavigate('next');
-          }}
-        >
-          <ChevronRight className="h-6 w-6" />
-        </Button>
-
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-black/50 text-white border-white/20 hover:bg-black/70 gap-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(currentImage.id);
-            }}
-          >
-            <Trash2 className="h-4 w-4" /> Delete
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-black/50 text-white border-white/20 hover:bg-black/70 gap-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDownload(currentImage.id);
-            }}
-          >
-            <Download className="h-4 w-4" /> Download
-          </Button>
-        </div>
-
-        <div className="h-full max-h-screen w-full flex items-center justify-center transition-all duration-300 animate-zoom-in">
-          <img
-            src={currentImage.url}
-            alt={`Full size image ${currentIndex + 1}`}
-            className="max-h-full max-w-full object-contain"
-          />
-        </div>
-
-        {showInfo && (
-          <div className="absolute top-16 left-4 w-80 bg-black/80 text-white p-4 rounded-lg animate-slide-down">
-            <h3 className="text-lg font-semibold mb-2">Image Details</h3>
-            <div className="space-y-2 text-sm">
-              <p>Seed: {currentImage.seed}</p>
-              <p>Size: {currentImage.settings.size}</p>
-              <p>Template: {currentImage.settings.template}</p>
-              <p>Style: {currentImage.settings.style}</p>
-              {currentImage.prompts.civitaiLora && (
-                <p>Lora: {currentImage.prompts.civitaiLora}</p>
-              )}
-              <p>AI Enhancer: {currentImage.settings.aiEnhancer ? 'Enabled' : 'Disabled'}</p>
-              <p>Date: {new Date(currentImage.timestamp).toLocaleString()}</p>
-            </div>
+        <img
+          src={image.url}
+          alt={`Generated image ${image.id}`}
+          className="w-full h-48 md:h-64 object-cover transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+        />
+        
+        {/* Info overlay */}
+        <div className="absolute inset-0 bg-black/60 flex flex-col justify-between p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center justify-between">
+            <Badge variant="outline" className="bg-black/50 text-white">
+              Seed: {image.seed}
+            </Badge>
+            <Badge variant="outline" className="bg-black/50 text-white">
+              {formatDate(image.timestamp)}
+            </Badge>
           </div>
-        )}
-
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
-          {currentIndex + 1} / {images.length}
+          
+          {/* Bottom controls */}
+          {showControls && (
+            <div className="flex justify-center space-x-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 bg-black/50 hover:bg-black/70 text-white"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsDialogOpen(true);
+                }}
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 bg-black/50 hover:bg-black/70 text-white"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDownload(image.id);
+                }}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 bg-black/50 hover:bg-black/70 text-white"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCopyPrompt();
+                }}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+              
+              {isTrash && onRestore ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 bg-black/50 hover:bg-black/70 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRestore(image.id);
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              ) : onDelete ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 bg-black/50 hover:bg-black/70 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(image.id);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
-    </div>
+      
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Image Details</DialogTitle>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <img
+                src={image.url}
+                alt={`Generated image ${image.id}`}
+                className="w-full rounded-md shadow-md"
+              />
+              
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => onDownload(image.id)}>
+                  <Download className="h-4 w-4 mr-2" /> Download
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleCopyPrompt}>
+                  <Copy className="h-4 w-4 mr-2" /> Copy Prompt
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleCopySettings}>
+                  <Copy className="h-4 w-4 mr-2" /> Copy Settings
+                </Button>
+                {onDelete && (
+                  <Button size="sm" variant="destructive" onClick={() => {
+                    onDelete(image.id);
+                    setIsDialogOpen(false);
+                  }}>
+                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            <div>
+              <Tabs defaultValue="prompt">
+                <TabsList className="w-full">
+                  <TabsTrigger value="prompt" className="flex-1">Prompt</TabsTrigger>
+                  <TabsTrigger value="settings" className="flex-1">Settings</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="prompt" className="space-y-4 mt-4">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="space-y-2">
+                        <div>
+                          <h4 className="text-sm font-medium">Character</h4>
+                          <p className="text-sm text-gray-700">{image.prompts.characterName}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium">Character Base</h4>
+                          <p className="text-sm text-gray-700">{image.prompts.characterBase}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium">Clothing Details</h4>
+                          <p className="text-sm text-gray-700">{image.prompts.clothingDetails}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium">Scene Details</h4>
+                          <p className="text-sm text-gray-700">{image.prompts.characterSceneDetails}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium">Background</h4>
+                          <p className="text-sm text-gray-700">{image.prompts.background}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium">Detail Tags</h4>
+                          <p className="text-sm text-gray-700">{image.prompts.finalDetailQualityTags}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium">Negative Prompt</h4>
+                          <p className="text-sm text-gray-700">{image.prompts.negativePrompt}</p>
+                        </div>
+                        
+                        {image.prompts.civitaiLora && (
+                          <div>
+                            <h4 className="text-sm font-medium">Civitai Lora</h4>
+                            <p className="text-sm text-gray-700">{image.prompts.civitaiLora}</p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                
+                <TabsContent value="settings" className="space-y-4 mt-4">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="space-y-2">
+                        <div>
+                          <h4 className="text-sm font-medium">Style</h4>
+                          <p className="text-sm text-gray-700">{image.settings.style}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium">Size</h4>
+                          <p className="text-sm text-gray-700">{image.settings.size}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium">Seed</h4>
+                          <p className="text-sm text-gray-700">{image.seed}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium">AI Enhancer</h4>
+                          <p className="text-sm text-gray-700">{image.settings.aiEnhancer ? "Enabled" : "Disabled"}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium">LLM Model</h4>
+                          <p className="text-sm text-gray-700">{image.settings.llmModel}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

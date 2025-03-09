@@ -1,23 +1,26 @@
 
 /**
  * Scene Prompt Generator
- * Enhanced version for React implementation with improved parsing
+ * Enhanced version ready for React implementation with improved parsing
  */
 
-// Define the API key - In a production app, this should be in an environment variable
-const API_KEY = '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';
-
-export class SceneGenerator {
+// Core generator functionality
+class SceneGenerator {
   private fileData: {
     solo: string | null;
     couple: string | null;
     afetex: string | null;
   };
-  private fileUrls: Record<string, string>;
+  private fileUrls: {
+    solo: string;
+    couple: string;
+    afetex: string;
+  };
   private initialized: boolean;
   private model: string;
+  private fileDataExpiry: number | null;
 
-  constructor(model = 'aion-labs/aion-1.0-mini') {
+  constructor() {
     this.fileData = {
       solo: null,
       couple: null,
@@ -29,59 +32,95 @@ export class SceneGenerator {
       afetex: 'https://huggingface.co/adbrasi/testedownload/resolve/main/afetex.txt?download=true'
     };
     this.initialized = false;
-    this.model = model;
-
-    // Try to load cached data
+    this.model = 'aion-labs/aion-1.0-mini';
+    this.fileDataExpiry = null;
+    
+    // Try to load cached data from localStorage
     this.loadFromCache();
   }
 
   /**
-   * Load data from localStorage cache if available
+   * Set the OpenRouter model to use
    */
-  private loadFromCache(): void {
+  setModel(model: string) {
+    this.model = model;
+    console.log(`Scene generator model set to: ${model}`);
+  }
+
+  /**
+   * Load cached data from localStorage if available
+   */
+  private loadFromCache() {
     try {
       const cachedData = localStorage.getItem('sceneGeneratorCache');
       if (cachedData) {
         const parsed = JSON.parse(cachedData);
-        if (parsed.solo && parsed.couple && parsed.afetex) {
-          this.fileData = parsed;
-          this.initialized = true;
-          console.log('Loaded scene generator data from cache');
+        
+        // Check if data is still valid (24 hours)
+        if (parsed.expiry && parsed.expiry > Date.now()) {
+          console.log('Loading scene generator data from cache');
+          this.fileData = parsed.fileData;
+          this.fileDataExpiry = parsed.expiry;
+          
+          // Verify all data is present
+          if (this.fileData.solo && this.fileData.couple && this.fileData.afetex) {
+            this.initialized = true;
+          }
+        } else {
+          console.log('Cache expired, will fetch fresh data');
+          localStorage.removeItem('sceneGeneratorCache');
         }
       }
     } catch (error) {
-      console.warn('Failed to load from cache:', error);
+      console.error('Error loading scene generator cache:', error);
+      localStorage.removeItem('sceneGeneratorCache');
     }
   }
 
   /**
    * Save data to localStorage cache
    */
-  private saveToCache(): void {
+  private saveToCache() {
     try {
-      localStorage.setItem('sceneGeneratorCache', JSON.stringify(this.fileData));
-      console.log('Saved scene generator data to cache');
+      const expiry = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
+      const cacheData = {
+        fileData: this.fileData,
+        expiry
+      };
+      
+      localStorage.setItem('sceneGeneratorCache', JSON.stringify(cacheData));
+      this.fileDataExpiry = expiry;
+      console.log('Scene generator data cached until', new Date(expiry).toLocaleString());
     } catch (error) {
-      console.warn('Failed to save to cache:', error);
+      console.error('Error caching scene generator data:', error);
     }
   }
 
   /**
    * Download a text file from a URL
+   * @param {string} url - URL to download from
+   * @returns {Promise<string>} - Text content of the file
    */
-  private async fetchTextFile(url: string): Promise<string> {
-    const response = await fetch(url);
+  async fetchTextFile(url: string): Promise<string> {
+    console.log(`Fetching text file: ${url}`);
+    const response = await fetch(url, {
+      cache: 'no-store', // Skip the browser cache for fresh data
+    });
+    
     if (!response.ok) {
       throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
     }
+    
     return await response.text();
   }
 
   /**
    * Initialize the generator by loading all required text files
+   * @returns {Promise<boolean>} - Whether initialization was successful
    */
-  public async initialize(): Promise<boolean> {
+  async initialize(): Promise<boolean> {
     if (this.initialized) {
+      console.log('Scene generator already initialized');
       return true;
     }
 
@@ -99,30 +138,25 @@ export class SceneGenerator {
       this.fileData.couple = coupleText;
       this.fileData.afetex = afetexText;
       
-      this.initialized = true;
-      
-      // Save to cache for future use
+      // Save to cache
       this.saveToCache();
       
-      console.log('Scene generator initialized successfully');
+      this.initialized = true;
+      console.log('Scene generator initialization complete');
       return true;
     } catch (error) {
-      console.error('Failed to initialize generator:', error);
+      console.error('Failed to initialize scene generator:', error);
       return false;
     }
   }
 
   /**
-   * Set the model to use for API calls
-   */
-  public setModel(model: string): void {
-    this.model = model;
-  }
-
-  /**
    * Select random lines from text content
+   * @param {string} text - Text content to select from
+   * @param {number} count - Number of lines to select
+   * @returns {string[]} - Selected lines
    */
-  private selectLines(text: string, count: number): string[] {
+  selectLines(text: string, count: number): string[] {
     // Split text into trimmed, non-empty lines
     const lines = text.split('\n')
       .map(line => line.trim())
@@ -163,28 +197,35 @@ export class SceneGenerator {
 
   /**
    * Call the OpenRouter API
+   * @param {string} prompt - Raw prompt to send to API
+   * @param {string} extraInstructions - Additional instructions for the API
+   * @returns {Promise<string>} - Processed prompt from API
    */
-  private async callApi(prompt: string, extraInstructions: string): Promise<string> {
+  async callApi(prompt: string, extraInstructions: string): Promise<string> {
     try {
-      console.log(`Calling API with model: ${this.model}`);
-      console.log(`Raw prompt: ${prompt}`);
-      
+      console.log(`Calling OpenRouter API with model: ${this.model}`);
+      console.log(`Prompt: ${prompt}`);
+      console.log(`Extra instructions: ${extraInstructions || '(none)'}`);
+
+      const apiKey = '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';
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
           model: this.model,
           messages: [
             {
               role: 'system',
-              content: "Your output must be in JSON format. {scene_prompts:'prompt1/prompt2/prompt3...'}"
+              content: "Generate scene prompts based on the input. Your output should be a series of scene descriptions separated by slashes (/)."
             },
             {
               role: 'user',
-              content: `scene_prompts:"${prompt}" and here are the extra Instructions: ${extraInstructions || ''}`
+              content: `Base prompts: "${prompt}" 
+              Please improve these prompts and create a series of scenes based on them.
+              Extra instructions: ${extraInstructions || 'Make them vivid and detailed.'}`
             }
           ]
         })
@@ -197,10 +238,12 @@ export class SceneGenerator {
       const result = await response.json();
       console.log('API response:', result);
       
-      const extractedPrompts = this.extractScenePrompts(result.choices[0].message.content);
-      console.log('Extracted prompts:', extractedPrompts);
+      // Extract the content from the response
+      const content = result.choices?.[0]?.message?.content || '';
+      const extractedPrompt = this.extractScenePrompts(content);
       
-      return extractedPrompts;
+      console.log('Extracted prompt scenes:', extractedPrompt);
+      return extractedPrompt;
     } catch (error) {
       console.error('API call failed:', error);
       throw error;
@@ -208,48 +251,76 @@ export class SceneGenerator {
   }
 
   /**
-   * Extract scene prompts from API response
+   * Extract scene prompts from API response with improved handling of JSON-like content
+   * @param {string} content - API response content
+   * @returns {string} - Cleaned scene prompts
    */
-  private extractScenePrompts(content: string): string {
-    console.log('Extracting scene prompts from:', content);
+  extractScenePrompts(content: string): string {
+    console.log('Extracting prompt scenes from:', content);
     
     // First, remove all think tags and their content (handles multiple variants)
     let cleaned = content.replace(/<\/?(?:think|uncensored_think)>[\s\S]*?<\/(?:think|uncensored_think)>/g, '');
     
-    // Try to parse as JSON
-    try {
-      // Match JSON objects (handles both complete objects and partial matches)
-      const jsonMatch = cleaned.match(/{[\s\S]*?}/);
-      if (jsonMatch) {
-        const jsonStr = jsonMatch[0];
-        const parsed = JSON.parse(jsonStr);
-        
-        // Extract scene_prompts if available
-        if (parsed.scene_prompts) {
-          // Clean up the format
-          return parsed.scene_prompts
-            .replace(/\/+/g, '/') // Remove duplicate slashes
-            .replace(/,+/g, ',')  // Remove duplicate commas
-            .replace(/\s+/g, ' ') // Collapse multiple spaces
-            .trim();
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to parse JSON from API response, trying fallback method');
+    // Improved extraction strategy - look for series of scenes separated by slashes
+    const scenes: string[] = [];
+    
+    // Method 1: Look for blocks of text with slashes
+    const slashSeparatedBlocks = cleaned.split(/\n+/).filter(block => block.includes('/'));
+    
+    for (const block of slashSeparatedBlocks) {
+      const parts = block.split('/').map(p => p.trim()).filter(p => p);
+      scenes.push(...parts);
     }
     
-    // Fallback: Look for scene_prompts key-value pattern
-    const promptsMatch = cleaned.match(/scene_prompts['":\s]+([^}'"]+)/i);
-    if (promptsMatch && promptsMatch[1]) {
-      return promptsMatch[1]
+    // Method 2: If no slash-separated blocks found, look for numbered or bulleted lists
+    if (scenes.length === 0) {
+      const listItems = cleaned.match(/(?:^|\n)(?:[•\-*]|\d+[\.\)])\s*(.+?)(?=(?:\n[•\-*]|\n\d+[\.\)]|\n\n|$))/g);
+      
+      if (listItems && listItems.length > 0) {
+        for (const item of listItems) {
+          // Extract just the content after the bullet or number
+          const content = item.replace(/(?:^|\n)(?:[•\-*]|\d+[\.\)])\s*/, '').trim();
+          if (content) scenes.push(content);
+        }
+      }
+    }
+    
+    // If we still don't have scenes, try to extract from any quotes
+    if (scenes.length === 0) {
+      const quotes = cleaned.match(/["'](.+?)["']/g);
+      if (quotes && quotes.length > 0) {
+        for (const quote of quotes) {
+          const content = quote.replace(/^["']|["']$/g, '').trim();
+          if (content) scenes.push(content);
+        }
+      }
+    }
+    
+    // Last resort: split by newlines and take non-empty lines that look like scenes
+    if (scenes.length === 0) {
+      const lines = cleaned.split('\n')
+        .map(line => line.trim())
+        .filter(line => 
+          line && 
+          line.length > 15 && // Reasonable length for a scene
+          !line.includes(':') && // Not a label
+          !line.startsWith('Scene') // Not a header
+        );
+      
+      scenes.push(...lines);
+    }
+    
+    // If we still have nothing, just return the original content
+    if (scenes.length === 0) {
+      return cleaned
         .replace(/\/+/g, '/') // Remove duplicate slashes
         .replace(/,+/g, ',')  // Remove duplicate commas
         .replace(/\s+/g, ' ') // Collapse multiple spaces
         .trim();
     }
     
-    // Last resort: just return the cleaned string
-    return cleaned
+    // Join scenes with slashes
+    return scenes.join(' / ')
       .replace(/\/+/g, '/') // Remove duplicate slashes
       .replace(/,+/g, ',')  // Remove duplicate commas
       .replace(/\s+/g, ' ') // Collapse multiple spaces
@@ -258,22 +329,34 @@ export class SceneGenerator {
 
   /**
    * Generate a scene prompt
+   * @param {Object} options - Configuration options
+   * @param {boolean} options.useApi - Whether to use the API for processing
+   * @param {number} options.start - Number of lines from solo text
+   * @param {number} options.mid - Number of lines from couple text
+   * @param {number} options.end - Number of lines from afetex text
+   * @param {string} options.extraInstructions - Additional instructions for API
+   * @returns {Promise<string>} - Generated scene prompt
    */
-  public async generate(options: {
+  async generate({ 
+    useApi = false, 
+    start = 1, 
+    mid = 1, 
+    end = 1, 
+    extraInstructions = '' 
+  }: {
     useApi?: boolean;
     start?: number;
     mid?: number;
     end?: number;
     extraInstructions?: string;
   }): Promise<string> {
-    const { useApi = false, start = 1, mid = 1, end = 1, extraInstructions = '' } = options;
-    
-    console.log(`Generating scene prompt with options:`, options);
+    console.log(`Generating scene prompt with: useApi=${useApi}, start=${start}, mid=${mid}, end=${end}`);
     
     if (!this.initialized) {
+      console.log('Scene generator not initialized, initializing now...');
       const success = await this.initialize();
       if (!success) {
-        throw new Error('Failed to initialize generator');
+        throw new Error('Failed to initialize scene generator');
       }
     }
 
@@ -282,11 +365,13 @@ export class SceneGenerator {
     const midLines = this.selectLines(this.fileData.couple!, mid);
     const endLines = this.selectLines(this.fileData.afetex!, end);
     
+    console.log(`Selected ${startLines.length} start lines, ${midLines.length} mid lines, ${endLines.length} end lines`);
+    
     // Combine all lines
     const allLines = [...startLines, ...midLines, ...endLines];
     let rawPrompt = allLines.join('/').replace(/\/+/g, '/').trim();
     
-    console.log('Generated raw prompt:', rawPrompt);
+    console.log('Raw prompt:', rawPrompt);
     
     // Return raw prompt if not using API
     if (!useApi) {
@@ -295,6 +380,7 @@ export class SceneGenerator {
     
     // Process with API
     try {
+      console.log('Using API to enhance prompt');
       return await this.callApi(rawPrompt, extraInstructions);
     } catch (error) {
       console.error('Error using API, returning raw prompt instead:', error);
@@ -304,4 +390,6 @@ export class SceneGenerator {
 }
 
 // Create a singleton instance
-export const sceneGenerator = new SceneGenerator();
+const sceneGenerator = new SceneGenerator();
+
+export { SceneGenerator, sceneGenerator };

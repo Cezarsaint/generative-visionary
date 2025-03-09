@@ -1,294 +1,338 @@
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import React, { useState, useEffect } from "react";
 import { 
-  Clock, 
-  Trash, 
-  Download, 
-  RefreshCw 
-} from "lucide-react";
-import { Generation, GeneratedImage } from "@/types";
-import { getHistory, getTrash, clearTrash, restoreFromTrash, deleteFromTrash } from "@/services/imageService";
+  getHistory, 
+  getTrash, 
+  restoreFromTrash, 
+  clearTrash, 
+  deleteFromTrash,
+  deleteFromHistory
+} from "@/services/imageService";
+import { GeneratedImage, Generation } from "@/types";
+import ImageViewer from "./ImageViewer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Search, Trash2, RefreshCw, Download } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface HistoryTabProps {
   onRestore: (images: GeneratedImage[]) => void;
   onDownload: (imageId: string) => void;
 }
 
-const HistoryTab = ({ onRestore, onDownload }: HistoryTabProps) => {
-  const [activeTab, setActiveTab] = useState<string>("history");
-  const [history, setHistory] = useState<Generation[]>(getHistory());
-  const [trash, setTrash] = useState<GeneratedImage[]>(getTrash());
-  const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
+const HistoryTab: React.FC<HistoryTabProps> = ({ onRestore, onDownload }) => {
+  const [history, setHistory] = useState<Generation[]>([]);
+  const [trash, setTrash] = useState<GeneratedImage[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedTab, setSelectedTab] = useState("history");
+  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const refreshHistory = () => {
-    setHistory(getHistory());
-  };
+  // Load history and trash data
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const refreshTrash = () => {
-    setTrash(getTrash());
-  };
-
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-    setSelectedItems({});
-    if (value === "history") {
-      refreshHistory();
-    } else {
-      refreshTrash();
+  const loadData = () => {
+    try {
+      const historyData = getHistory();
+      const trashData = getTrash();
+      setHistory(historyData);
+      setTrash(trashData);
+    } catch (error) {
+      console.error("Error loading history/trash data:", error);
+      toast.error("Failed to load history data");
     }
   };
 
-  const toggleSelectItem = (id: string) => {
-    setSelectedItems(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
+  // Filter history generations based on search term
+  const filteredHistory = history.filter((generation) => {
+    const searchString = searchTerm.toLowerCase();
+    return (
+      generation.prompts.characterName.toLowerCase().includes(searchString) ||
+      generation.settings.style.toLowerCase().includes(searchString) ||
+      generation.prompts.characterBase.toLowerCase().includes(searchString) ||
+      generation.prompts.background.toLowerCase().includes(searchString)
+    );
+  });
 
-  const selectAll = () => {
-    const newSelectedItems: Record<string, boolean> = {};
-    
-    if (activeTab === "history") {
-      history.forEach(gen => {
-        newSelectedItems[gen.id] = true;
-      });
+  // Filter trash images based on search term
+  const filteredTrash = trash.filter((image) => {
+    const searchString = searchTerm.toLowerCase();
+    return (
+      image.prompts.characterName.toLowerCase().includes(searchString) ||
+      image.settings.style.toLowerCase().includes(searchString) ||
+      image.prompts.characterBase.toLowerCase().includes(searchString) ||
+      image.prompts.background.toLowerCase().includes(searchString)
+    );
+  });
+
+  // Toggle image selection in trash
+  const toggleImageSelection = (imageId: string) => {
+    const newSelection = new Set(selectedImages);
+    if (newSelection.has(imageId)) {
+      newSelection.delete(imageId);
     } else {
-      trash.forEach(img => {
-        newSelectedItems[img.id] = true;
-      });
+      newSelection.add(imageId);
     }
-    
-    setSelectedItems(newSelectedItems);
+    setSelectedImages(newSelection);
   };
 
-  const deselectAll = () => {
-    setSelectedItems({});
+  // Handle restoring selected images from trash
+  const handleRestore = () => {
+    if (selectedImages.size === 0) {
+      toast.error("No images selected");
+      return;
+    }
+
+    try {
+      const imageIds = Array.from(selectedImages);
+      const restoredImages = restoreFromTrash(imageIds);
+      
+      // Clear selection
+      setSelectedImages(new Set());
+      
+      // Refresh trash data
+      loadData();
+      
+      // Notify parent component about restored images
+      onRestore(restoredImages);
+      
+      toast.success(`Restored ${restoredImages.length} images`);
+    } catch (error) {
+      console.error("Error restoring images:", error);
+      toast.error("Failed to restore images");
+    }
   };
 
-  const handleClearTrash = () => {
-    clearTrash();
-    setTrash([]);
-    setSelectedItems({});
-  };
-
-  const handleRestoreFromTrash = () => {
-    const selectedIds = Object.entries(selectedItems)
-      .filter(([_, isSelected]) => isSelected)
-      .map(([id]) => id);
-    
-    if (selectedIds.length === 0) return;
-    
-    const restoredImages = restoreFromTrash(selectedIds);
-    onRestore(restoredImages);
-    refreshTrash();
-    setSelectedItems({});
-  };
-
+  // Handle deleting selected images from trash
   const handleDeleteFromTrash = () => {
-    const selectedIds = Object.entries(selectedItems)
-      .filter(([_, isSelected]) => isSelected)
-      .map(([id]) => id);
-    
-    if (selectedIds.length === 0) return;
-    
-    deleteFromTrash(selectedIds);
-    refreshTrash();
-    setSelectedItems({});
+    if (selectedImages.size === 0) {
+      toast.error("No images selected");
+      return;
+    }
+
+    try {
+      const imageIds = Array.from(selectedImages);
+      deleteFromTrash(imageIds);
+      
+      // Clear selection
+      setSelectedImages(new Set());
+      
+      // Refresh trash data
+      loadData();
+      
+      toast.success(`Deleted ${imageIds.length} images`);
+    } catch (error) {
+      console.error("Error deleting images:", error);
+      toast.error("Failed to delete images");
+    }
   };
 
-  const getSelectedCount = () => {
-    return Object.values(selectedItems).filter(Boolean).length;
+  // Handle clearing all trash
+  const handleClearTrash = () => {
+    try {
+      clearTrash();
+      setTrash([]);
+      setSelectedImages(new Set());
+      toast.success("Trash cleared");
+    } catch (error) {
+      console.error("Error clearing trash:", error);
+      toast.error("Failed to clear trash");
+    }
+  };
+
+  // Handle deleting a generation from history
+  const handleDeleteGeneration = (generationId: string) => {
+    try {
+      deleteFromHistory(generationId);
+      loadData();
+      toast.success("Generation moved to trash");
+    } catch (error) {
+      console.error("Error deleting generation:", error);
+      toast.error("Failed to delete generation");
+    }
   };
 
   return (
-    <div className="w-full glassmorphism rounded-xl p-4 transition-all duration-300 animate-slide-up">
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <div className="flex justify-between items-center mb-4">
-          <TabsList>
-            <TabsTrigger value="history" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              History
+    <div className="glassmorphism rounded-xl p-6">
+      <div className="mb-6">
+        <div className="flex items-center space-x-2 mb-4">
+          <Search className="h-4 w-4 text-gray-500" />
+          <Input
+            placeholder="Search by character, style, or background..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="flex-1"
+          />
+        </div>
+
+        <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+          <TabsList className="w-full">
+            <TabsTrigger value="history" className="flex-1">
+              History ({history.length})
             </TabsTrigger>
-            <TabsTrigger value="trash" className="flex items-center gap-2">
-              <Trash className="h-4 w-4" />
-              Trash
+            <TabsTrigger value="trash" className="flex-1">
+              Trash ({trash.length})
             </TabsTrigger>
           </TabsList>
-          
-          <div className="flex gap-2">
-            {getSelectedCount() > 0 && (
-              <span className="text-sm text-muted-foreground self-center">
-                {getSelectedCount()} selected
-              </span>
-            )}
-            
-            {getSelectedCount() > 0 ? (
-              <Button variant="ghost" size="sm" onClick={deselectAll}>
-                Deselect All
-              </Button>
+
+          <TabsContent value="history" className="mt-4">
+            {filteredHistory.length === 0 ? (
+              <div className="text-center py-10 text-gray-500">
+                {searchTerm ? "No matching generations found" : "No generation history yet"}
+              </div>
             ) : (
-              <Button variant="ghost" size="sm" onClick={selectAll}>
-                Select All
-              </Button>
-            )}
-            
-            {activeTab === "history" ? (
-              <Button variant="outline" size="sm" onClick={refreshHistory}>
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={refreshTrash}
-                className="flex items-center gap-1"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-        
-        <TabsContent value="history" className="mt-2">
-          {history.length === 0 ? (
-            <div className="text-center py-8">
-              <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-              <h3 className="text-lg font-medium">No Generation History</h3>
-              <p className="text-muted-foreground text-sm mt-1">
-                Generate some images to see your history
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {history.map((generation) => (
-                <div key={generation.id} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id={`select-${generation.id}`}
-                        checked={!!selectedItems[generation.id]}
-                        onChange={() => toggleSelectItem(generation.id)}
-                        className="rounded-sm"
-                      />
-                      <h3 className="text-sm font-medium">
-                        {new Date(generation.timestamp).toLocaleString()} • {generation.images.length} images
-                      </h3>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {generation.settings.style}
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                    {generation.images.map((image) => (
-                      <Card key={image.id} className="overflow-hidden relative group">
-                        <div className="aspect-square">
-                          <img
-                            src={image.url}
-                            alt={`Generated on ${new Date(image.timestamp).toLocaleString()}`}
-                            className="w-full h-full object-cover"
-                          />
+              <div className="space-y-8">
+                {filteredHistory.map((generation) => (
+                  <div key={generation.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex flex-wrap justify-between items-center mb-4">
+                      <div>
+                        <h3 className="text-lg font-medium mb-1">
+                          {generation.prompts.characterName || "Unnamed Character"}
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline">
+                            {new Date(generation.timestamp).toLocaleString()}
+                          </Badge>
+                          <Badge variant="outline">{generation.settings.style}</Badge>
+                          <Badge variant="outline">{generation.settings.size}</Badge>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute top-1 right-1 h-6 w-6 bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => onDownload(image.id)}
+                      </div>
+                      <div className="flex space-x-2">
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={() => handleDeleteGeneration(generation.id)}
                         >
-                          <Download className="h-3 w-3" />
+                          <Trash2 className="h-4 w-4 mr-2" /> Delete
                         </Button>
-                      </Card>
-                    ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {generation.images.map((image) => (
+                        <ImageViewer
+                          key={image.id}
+                          image={image}
+                          onDownload={onDownload}
+                          onDelete={() => handleDeleteGeneration(generation.id)}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="trash" className="mt-2">
-          {trash.length === 0 ? (
-            <div className="text-center py-8">
-              <Trash className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-              <h3 className="text-lg font-medium">Trash is Empty</h3>
-              <p className="text-muted-foreground text-sm mt-1">
-                Deleted images will appear here
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex justify-between">
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="trash" className="mt-4">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <Badge variant="outline" className="mr-2">
+                  {selectedImages.size} selected
+                </Badge>
+              </div>
+              <div className="flex space-x-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleClearTrash}
-                  className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                  onClick={handleRestore}
+                  disabled={selectedImages.size === 0}
                 >
-                  Empty Trash
+                  <RefreshCw className="h-4 w-4 mr-2" /> Restore Selected
                 </Button>
-                
-                {getSelectedCount() > 0 && (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRestoreFromTrash}
-                    >
-                      Restore Selected
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={handleDeleteFromTrash}
-                    >
-                      Delete Selected
-                    </Button>
-                  </div>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                {trash.map((image) => (
-                  <Card 
-                    key={image.id} 
-                    className={`overflow-hidden relative group ${
-                      selectedItems[image.id] ? 'ring-2 ring-primary' : ''
-                    }`}
-                    onClick={() => toggleSelectItem(image.id)}
-                  >
-                    <div className="aspect-square cursor-pointer">
-                      <img
-                        src={image.url}
-                        alt={`Deleted image ${image.seed}`}
-                        className="w-full h-full object-cover"
-                      />
-                      <div 
-                        className={`absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity ${
-                          selectedItems[image.id] ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={!!selectedItems[image.id]}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            toggleSelectItem(image.id);
-                          }}
-                          className="h-5 w-5"
-                        />
-                      </div>
-                    </div>
-                  </Card>
-                ))}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteDialog(true)}
+                  disabled={selectedImages.size === 0}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete Selected
+                </Button>
               </div>
             </div>
-          )}
-        </TabsContent>
-      </Tabs>
+
+            {filteredTrash.length === 0 ? (
+              <div className="text-center py-10 text-gray-500">
+                {searchTerm ? "No matching images found" : "Trash is empty"}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {filteredTrash.map((image) => (
+                  <ImageViewer
+                    key={image.id}
+                    image={image}
+                    onDownload={onDownload}
+                    onRestore={(id) => {
+                      const restored = restoreFromTrash([id]);
+                      onRestore(restored);
+                      loadData();
+                    }}
+                    isTrash={true}
+                    isSelected={selectedImages.has(image.id)}
+                    onSelect={toggleImageSelection}
+                  />
+                ))}
+              </div>
+            )}
+
+            {trash.length > 0 && (
+              <div className="mt-6 flex justify-end">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Clear Trash
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Confirmation dialog for deletions */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              {selectedImages.size > 0
+                ? `Are you sure you want to permanently delete ${selectedImages.size} selected images?`
+                : "Are you sure you want to permanently clear all items in the trash?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (selectedImages.size > 0) {
+                  handleDeleteFromTrash();
+                } else {
+                  handleClearTrash();
+                }
+                setShowDeleteDialog(false);
+              }}
+            >
+              Delete Permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
