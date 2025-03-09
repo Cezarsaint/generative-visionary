@@ -37,6 +37,8 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ onRestore, onDownload }) => {
   const [selectedTab, setSelectedTab] = useState("history");
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<"selected" | "all" | "generation">("selected");
+  const [generationToDelete, setGenerationToDelete] = useState<string | null>(null);
 
   // Load history and trash data
   useEffect(() => {
@@ -164,6 +166,31 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ onRestore, onDownload }) => {
     }
   };
 
+  // Show the delete confirmation dialog
+  const confirmDelete = (target: "selected" | "all" | "generation", generationId?: string) => {
+    setDeleteTarget(target);
+    setGenerationToDelete(generationId || null);
+    setShowDeleteDialog(true);
+  };
+
+  // Execute the appropriate delete action based on target
+  const executeDelete = () => {
+    switch (deleteTarget) {
+      case "selected":
+        handleDeleteFromTrash();
+        break;
+      case "all":
+        handleClearTrash();
+        break;
+      case "generation":
+        if (generationToDelete) {
+          handleDeleteGeneration(generationToDelete);
+        }
+        break;
+    }
+    setShowDeleteDialog(false);
+  };
+
   return (
     <div className="glassmorphism rounded-xl p-6">
       <div className="mb-6">
@@ -213,7 +240,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ onRestore, onDownload }) => {
                         <Button 
                           variant="destructive" 
                           size="sm"
-                          onClick={() => handleDeleteGeneration(generation.id)}
+                          onClick={() => confirmDelete("generation", generation.id)}
                         >
                           <Trash2 className="h-4 w-4 mr-2" /> Delete
                         </Button>
@@ -222,12 +249,22 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ onRestore, onDownload }) => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       {generation.images.map((image) => (
-                        <ImageViewer
-                          key={image.id}
-                          image={image}
-                          onDownload={onDownload}
-                          onDelete={() => handleDeleteGeneration(generation.id)}
-                        />
+                        <div key={image.id} className="relative group">
+                          <ImageViewer
+                            image={image}
+                            onDownload={onDownload}
+                          />
+                          <div className="absolute top-2 right-2 hidden group-hover:block">
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="h-8 w-8 rounded-full"
+                              onClick={() => confirmDelete("generation", generation.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -255,7 +292,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ onRestore, onDownload }) => {
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => setShowDeleteDialog(true)}
+                  onClick={() => confirmDelete("selected")}
                   disabled={selectedImages.size === 0}
                 >
                   <Trash2 className="h-4 w-4 mr-2" /> Delete Selected
@@ -279,6 +316,10 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ onRestore, onDownload }) => {
                       onRestore(restored);
                       loadData();
                     }}
+                    onDelete={(id) => {
+                      deleteFromTrash([id]);
+                      loadData();
+                    }}
                     isTrash={true}
                     isSelected={selectedImages.has(image.id)}
                     onSelect={toggleImageSelection}
@@ -292,7 +333,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ onRestore, onDownload }) => {
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => setShowDeleteDialog(true)}
+                  onClick={() => confirmDelete("all")}
                 >
                   <Trash2 className="h-4 w-4 mr-2" /> Clear Trash
                 </Button>
@@ -308,9 +349,11 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ onRestore, onDownload }) => {
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              {selectedImages.size > 0
+              {deleteTarget === "selected" && selectedImages.size > 0
                 ? `Are you sure you want to permanently delete ${selectedImages.size} selected images?`
-                : "Are you sure you want to permanently clear all items in the trash?"}
+                : deleteTarget === "all"
+                ? "Are you sure you want to permanently clear all items in the trash?"
+                : "Are you sure you want to delete this generation and move its images to trash?"}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -319,14 +362,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({ onRestore, onDownload }) => {
             </Button>
             <Button
               variant="destructive"
-              onClick={() => {
-                if (selectedImages.size > 0) {
-                  handleDeleteFromTrash();
-                } else {
-                  handleClearTrash();
-                }
-                setShowDeleteDialog(false);
-              }}
+              onClick={executeDelete}
             >
               Delete Permanently
             </Button>

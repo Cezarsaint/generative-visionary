@@ -35,7 +35,7 @@ class SceneGenerator {
     this.model = 'aion-labs/aion-1.0-mini';
     this.fileDataExpiry = null;
     
-    // Try to load cached data from localStorage
+    // Try to load cached data from localStorage - only for the text files
     this.loadFromCache();
   }
 
@@ -296,6 +296,23 @@ class SceneGenerator {
       }
     }
     
+    // Safer extraction for JSON-like content with curly braces
+    if (scenes.length === 0) {
+      // Look for blocks that might be complete scene descriptions but contain curly braces
+      const potentialScenes = cleaned.split(/\n{2,}|\r\n{2,}/).filter(block => 
+        block.trim().length > 20 && !block.trim().startsWith('#') && !block.includes(':') && 
+        !(block.includes('{') && !block.includes('}'))  // Avoid incomplete JSON blocks
+      );
+      
+      for (const scene of potentialScenes) {
+        // Split by newlines and get substantive content
+        const lines = scene.split(/\n/).map(line => line.trim()).filter(line => 
+          line.length > 15 && !line.startsWith('#') && !line.includes(':')
+        );
+        scenes.push(...lines);
+      }
+    }
+    
     // Last resort: split by newlines and take non-empty lines that look like scenes
     if (scenes.length === 0) {
       const lines = cleaned.split('\n')
@@ -360,7 +377,7 @@ class SceneGenerator {
       }
     }
 
-    // Select lines from each text source
+    // Select lines from each text source - FRESH SELECTION EVERY TIME
     const startLines = this.selectLines(this.fileData.solo!, start);
     const midLines = this.selectLines(this.fileData.couple!, mid);
     const endLines = this.selectLines(this.fileData.afetex!, end);

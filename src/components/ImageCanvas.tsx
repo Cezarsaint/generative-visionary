@@ -155,17 +155,39 @@ const ImageCanvas = ({
         </div>
       )}
 
+      {/* Fixed position for the full-screen viewer to display correctly */}
       {selectedImageIndex !== null && images.length > 0 && (
-        <ImageViewer
-          image={images[selectedImageIndex]}
-          onClose={closeImageViewer}
-          onDelete={(id) => {
-            onDelete(id);
-            closeImageViewer();
-          }}
-          onDownload={onDownload}
-          showControls={true}
-        />
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
+          <ImageViewer
+            image={images[selectedImageIndex]}
+            onClose={closeImageViewer}
+            onDelete={(id) => {
+              onDelete(id);
+              closeImageViewer();
+            }}
+            onDownload={onDownload}
+            showControls={true}
+          />
+          
+          <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => navigateImages('prev')}
+              className="bg-white/10 hover:bg-white/20"
+            >
+              Previous
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => navigateImages('next')}
+              className="bg-white/10 hover:bg-white/20"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Full Prompt Preview */}

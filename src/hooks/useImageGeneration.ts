@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useRef, useEffect } from "react";
 import { 
   GeneratedImage, 
@@ -59,10 +58,15 @@ export const useImageGeneration = () => {
       generation: generationSettings,
       prompt: promptSettings
     };
+    console.log("Settings updated - AI Enhancer:", generationSettings.aiEnhancer);
   }, [generationSettings, promptSettings]);
   
   const updateGenerationSettings = useCallback((settings: Partial<GenerationSettings>) => {
-    setGenerationSettings(prev => ({ ...prev, ...settings }));
+    setGenerationSettings(prev => {
+      const updated = { ...prev, ...settings };
+      console.log("Generation settings updated:", updated);
+      return updated;
+    });
   }, []);
   
   const updatePromptSettings = useCallback((settings: Partial<PromptSettings>) => {
@@ -75,12 +79,13 @@ export const useImageGeneration = () => {
       setHasError(false);
       setIsGenerating(true);
       
-      // Get the latest settings from the ref
-      const currentGenerationSettings = { ...latestSettingsRef.current.generation };
-      const currentPromptSettings = { ...latestSettingsRef.current.prompt };
+      // Get the latest settings directly from state
+      const currentGenerationSettings = { ...generationSettings };
+      const currentPromptSettings = { ...promptSettings };
       
       console.log("Generating with settings:", currentGenerationSettings);
       console.log("Using prompt settings:", currentPromptSettings);
+      console.log("AI Enhancer is:", currentGenerationSettings.aiEnhancer ? "ENABLED" : "DISABLED");
       
       // Validate settings
       if (!currentPromptSettings.characterName) {
@@ -89,7 +94,7 @@ export const useImageGeneration = () => {
         return;
       }
       
-      // If promptScenes is empty and aiEnhancer is true, generate prompt scenes
+      // If promptScenes is empty, generate prompt scenes
       let finalPromptScenes = currentPromptSettings.promptScenes;
       if (!finalPromptScenes.trim()) {
         try {
@@ -182,7 +187,7 @@ export const useImageGeneration = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [updateGenerationSettings, updatePromptSettings]);
+  }, [generationSettings, promptSettings, updateGenerationSettings, updatePromptSettings]);
   
   const deleteImage = useCallback((imageId: string) => {
     // Find the image to delete
